@@ -13,8 +13,7 @@ export const profile = {
     'Welcome to my island!',
   blog: { label: 'cheng.im', url: 'https://cheng.im' },
   github: { label: 'github.com/huangcheng', url: 'https://github.com/huangcheng' },
-  /** Placeholder — replace with your real address. */
-  email: { label: 'hi@cheng.im', url: 'mailto:hi@cheng.im' },
+  email: { label: 'cheng@wuhan.dev', url: 'mailto:cheng@wuhan.dev' },
 };
 
 export interface Project {

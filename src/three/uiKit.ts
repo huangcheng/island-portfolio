@@ -183,110 +183,14 @@ export class UiButton extends THREE.Group {
     this.scale.set(this.baseScale.x * k, this.baseScale.y * k, 1);
   }
 }
+// ── SVG icons (Lucide, baked white) — Baloo 2 has no icon glyphs ───────────
 
-// ── Drawn icons (Baloo 2 lacks most icon glyphs, so we draw geometry) ─────────
-
-/**
- * Thick stroke (mitered) of a polyline as a filled THREE.Shape. Endpoints get
- * caps aligned to their single incident segment; closed loops wrap neighbours.
- */
-export function strokeShape(points: number[][], width: number, closed = false): THREE.Shape {
-  const n = points.length;
-  const half = width / 2;
-  const L: THREE.Vector2[] = [];
-  const R: THREE.Vector2[] = [];
-  for (let i = 0; i < n; i++) {
-    const pi = closed ? (i - 1 + n) % n : Math.max(0, i - 1);
-    const ni = closed ? (i + 1) % n : Math.min(n - 1, i + 1);
-    let tx = points[ni][0] - points[pi][0];
-    let ty = points[ni][1] - points[pi][1];
-    const len = Math.hypot(tx, ty) || 1;
-    tx /= len;
-    ty /= len;
-    const ox = -ty * half;
-    const oy = tx * half;
-    L.push(new THREE.Vector2(points[i][0] + ox, points[i][1] + oy));
-    R.push(new THREE.Vector2(points[i][0] - ox, points[i][1] - oy));
-  }
-  const s = new THREE.Shape();
-  s.moveTo(L[0].x, L[0].y);
-  for (let i = 1; i < n; i++) s.lineTo(L[i].x, L[i].y);
-  for (let i = n - 1; i >= 0; i--) s.lineTo(R[i].x, R[i].y);
-  s.closePath();
-  return s;
-}
-
-function iconMaterial(color: number): THREE.MeshBasicMaterial {
-  return new THREE.MeshBasicMaterial({
-    color,
-    toneMapped: false,
-    depthTest: false,
-    depthWrite: false,
-    transparent: true,
-  });
-}
-
-function shapeMesh(shape: THREE.Shape, color: number): THREE.Mesh {
-  return new THREE.Mesh(new THREE.ShapeGeometry(shape, 3), iconMaterial(color));
-}
-
-/** Envelope (line icon): rectangle outline + flap caret. ~1 unit tall. */
-export function envelopeIcon(color = C.white): THREE.Group {
-  const g = new THREE.Group();
-  const w = 0.12;
-  g.add(shapeMesh(strokeShape([[-0.5, -0.34], [0.5, -0.34], [0.5, 0.34], [-0.5, 0.34]], w, true), color));
-  g.add(shapeMesh(strokeShape([[-0.5, 0.34], [0, -0.06], [0.5, 0.34]], w, false), color));
-  return g;
-}
-
-/** GitHub-ish cat head: filled silhouette (head + ears) + tiny face. ~1 unit tall. */
-export function githubCatIcon(color = C.white): THREE.Group {
-  const g = new THREE.Group();
-  const head = new THREE.Mesh(new THREE.CircleGeometry(0.4, 32), iconMaterial(color));
-  head.position.set(0, -0.05, 0);
-  g.add(head);
-  const earL = new THREE.Shape();
-  earL.moveTo(-0.3, 0.1);
-  earL.lineTo(-0.46, 0.46);
-  earL.lineTo(-0.02, 0.2);
-  earL.closePath();
-  const earR = new THREE.Shape();
-  earR.moveTo(0.3, 0.1);
-  earR.lineTo(0.46, 0.46);
-  earR.lineTo(0.02, 0.2);
-  earR.closePath();
-  g.add(new THREE.Mesh(new THREE.ShapeGeometry(earL, 1), iconMaterial(color)));
-  g.add(new THREE.Mesh(new THREE.ShapeGeometry(earR, 1), iconMaterial(color)));
-  const eyeGeo = new THREE.CircleGeometry(0.045, 14);
-  const eyeMat = iconMaterial(C.heading);
-  const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
-  eyeL.position.set(-0.12, -0.04, 0.001);
-  const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
-  eyeR.position.set(0.12, -0.04, 0.001);
-  g.add(eyeL, eyeR);
-  return g;
-}
-
-/** Pencil (filled silhouette + graphite tip). ~1 unit tall, tip down. */
-export function pencilIcon(color = C.white): THREE.Group {
-  const g = new THREE.Group();
-  const s = new THREE.Shape();
-  s.moveTo(0, -0.5);
-  s.lineTo(0.12, -0.2);
-  s.lineTo(0.12, 0.3);
-  s.lineTo(0.1, 0.38);
-  s.lineTo(0.1, 0.5);
-  s.lineTo(-0.1, 0.5);
-  s.lineTo(-0.1, 0.38);
-  s.lineTo(-0.12, 0.3);
-  s.lineTo(-0.12, -0.2);
-  s.closePath();
-  g.add(new THREE.Mesh(new THREE.ShapeGeometry(s, 2), iconMaterial(color)));
-  const tip = new THREE.Shape();
-  tip.moveTo(0, -0.5);
-  tip.lineTo(0.05, -0.4);
-  tip.lineTo(-0.05, -0.4);
-  tip.closePath();
-  g.add(new THREE.Mesh(new THREE.ShapeGeometry(tip, 1), iconMaterial(C.heading)));
-  return g;
+/** Plane mesh with an SVG icon texture (unit size; UiButton scales it). */
+export function makeIconMesh(url: string): THREE.Mesh {
+  const tex = new THREE.TextureLoader().load(url);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.Mesh(
+    new THREE.PlaneGeometry(1, 1),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, depthTest: false, depthWrite: false }),
+  );
 }

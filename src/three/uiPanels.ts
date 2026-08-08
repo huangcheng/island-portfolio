@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Text } from 'troika-three-text';
-import { C, FONT_BOLD, FONT_HEAVY, makeLabel, makePanel, roundedRectShape, UiButton, envelopeIcon, githubCatIcon, pencilIcon } from './uiKit';
+import { C, FONT_BOLD, FONT_HEAVY, makeIconMesh, makeLabel, makePanel, roundedRectShape, UiButton } from './uiKit';
 import { profile, projects, type Project } from '../content';
 
 const _spineA = new THREE.Color();
@@ -357,12 +357,12 @@ export class UiPanels {
     g.add(role);
 
     const blog = new UiButton({
-      w: 1.2, h: 0.38, bg: C.green, edge: C.greenEdge, label: 'Blog', size: 0.105, icon: pencilIcon(),
+      w: 1.2, h: 0.38, bg: C.green, edge: C.greenEdge, label: 'Blog', size: 0.105, icon: makeIconMesh('/icons/feather.svg'),
       onClick: () => window.open(profile.blog.url, '_blank', 'noopener'),
     });
     blog.position.set(-0.68, -H / 2 + 0.38, 0.002);
     const gh = new UiButton({
-      w: 1.2, h: 0.38, bg: C.blue, edge: C.blueEdge, label: 'GitHub', size: 0.105, icon: githubCatIcon(),
+      w: 1.2, h: 0.38, bg: C.blue, edge: C.blueEdge, label: 'GitHub', size: 0.105, icon: makeIconMesh('/icons/github.svg'),
       onClick: () => window.open(profile.github.url, '_blank', 'noopener'),
     });
     gh.position.set(0.68, -H / 2 + 0.38, 0.002);
@@ -529,7 +529,7 @@ export class UiPanels {
     g.add(note);
 
     // Link buttons row
-    const mk = (label: string, x: number, bg: number, edge: number, url: string, icon: THREE.Group) => {
+    const mk = (label: string, x: number, bg: number, edge: number, url: string, icon: THREE.Object3D) => {
       const b = new UiButton({
         w: 1.3, h: 0.4, bg, edge, label, size: 0.095, icon,
         onClick: () => window.open(url, '_blank', 'noopener'),
@@ -538,9 +538,9 @@ export class UiPanels {
       g.add(b);
       this.dialogHots.push({ group: b, mesh: b.hitMesh, onClick: () => window.open(url, '_blank', 'noopener'), hoverT: 0 });
     };
-    mk(profile.email.label, -1.5, C.orange, C.orangeEdge, profile.email.url, envelopeIcon());
-    mk('GitHub', 0, C.blue, C.blueEdge, profile.github.url, githubCatIcon());
-    mk(profile.blog.label, 1.5, C.green, C.greenEdge, profile.blog.url, pencilIcon());
+    mk(profile.email.label, -1.5, C.orange, C.orangeEdge, profile.email.url, makeIconMesh('/icons/mail.svg'));
+    mk('GitHub', 0, C.blue, C.blueEdge, profile.github.url, makeIconMesh('/icons/github.svg'));
+    mk(profile.blog.label, 1.5, C.green, C.greenEdge, profile.blog.url, makeIconMesh('/icons/feather.svg'));
 
     const foot = makeLabel('Carrier pigeon also accepted', { size: 0.066, color: C.body });
     foot.position.set(0, -H / 2 + 0.26, 0.002);
