@@ -1201,12 +1201,13 @@ export function buildIsland(): IslandBuild {
   grass.receiveShadow = true;
 
   // Rounded grass overhang lip ringing the grass/sand boundary (AC signature)
-  const lip = new THREE.Mesh(new THREE.TorusGeometry(15.05, 0.22, 12, 120), std(0x74c045));
+  // Nearly-flush rounded rim at the grass/sand seam — hides the cliff joint
+  // without reading as a tube lying on the lawn
+  const lip = new THREE.Mesh(new THREE.TorusGeometry(15.3, 0.14, 10, 120), std(0x6cb83f));
   lip.rotation.x = -Math.PI / 2;
-  lip.position.y = 0.06;
+  lip.position.y = -0.1;
   lip.scale.y = 0.5;
   lip.receiveShadow = true;
-  lip.castShadow = true;
 
   // Beach sand ring (full disc, grass sits on top revealing the ring 15→18)
   const sand = new THREE.Mesh(

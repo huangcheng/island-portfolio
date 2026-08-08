@@ -30,7 +30,7 @@ body,
   touch-action: none;
   /* The AC leaf cursor over the island (sharp tip at top-left). Over UI
      buttons the engine swaps in the pointing glove via JS. */
-  cursor: url('/cursor-leaf.png') 20 18, auto;
+  cursor: url('/cursor-leaf.png') 15 10, auto;
 }
 
 /* Loading veil shown until the engine reports its first frames. */

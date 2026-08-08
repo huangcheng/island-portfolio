@@ -638,7 +638,7 @@ export class UiPanels {
       this.hovered = hot;
       if (hot) this.setHover(hot, true);
       // Cursor swap: leaf (default, via CSS) ↔ pointing glove over UI
-      canvas.style.cursor = hot ? "url('/cursor-hand.png') 10 14, pointer" : '';
+      canvas.style.cursor = hot ? "url('/cursor-hand.png') 15 20, pointer" : '';
     }
   };
 
