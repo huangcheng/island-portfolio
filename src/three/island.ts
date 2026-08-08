@@ -20,6 +20,8 @@ export interface InteractPoint {
   exit?: boolean;
   /** Show the exhibit mini-panel for this project. */
   exhibit?: Project;
+  /** Open the Dodo Airlines flight board. */
+  airport?: boolean;
   position: THREE.Vector3;
   markerY: number;
   radius: number;
@@ -43,6 +45,8 @@ export interface IslandBuild {
   butterflies: Butterfly[];
   /** Distant gulls circling over the sea — the engine orbits + flaps them. */
   gulls: THREE.Group[];
+  /** The moored seaplane at the pier — the engine bobs it + spins the prop. */
+  seaplane: THREE.Group;
 }
 
 // ── Palette ───────────────────────────────────────────────────────────────
@@ -777,6 +781,98 @@ function makeDirtTexture(base: string, band: string): THREE.CanvasTexture {
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(10, 1);
   return tex;
+}
+
+// ── Seaplane dock (Dodo Airlines) ──────────────────────────────────────────
+
+/** Wooden pier deck extending from the beach into the sea. */
+function makePier(): THREE.Group {
+  const g = new THREE.Group();
+  const wood = std(0xa0714f, 0.85);
+  const woodDark = std(0x8a5f42, 0.85);
+  // Deck planks (alternating tones), running along +z
+  for (let i = 0; i < 11; i++) {
+    const plank = shadowed(new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.09, 0.5), i % 2 ? wood : woodDark), true, true);
+    plank.position.set(0, 0, i * 0.56);
+    g.add(plank);
+  }
+  // Support posts dropping into the water
+  for (const [px, pz] of [
+    [-0.75, 0.8], [0.75, 0.8],
+    [-0.75, 3.1], [0.75, 3.1],
+    [-0.75, 5.4], [0.75, 5.4],
+  ] as const) {
+    const post = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.1, 1.5, 8), woodDark));
+    post.position.set(px, -0.7, pz);
+    g.add(post);
+  }
+  // Mooring bollard at the end
+  const bollard = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.35, 10), woodDark));
+  bollard.position.set(0.6, 0.2, 5.6);
+  g.add(bollard);
+  return g;
+}
+
+/** Cute low-poly seaplane (white + red), floats on the water. */
+export function makeSeaplane(): THREE.Group {
+  const g = new THREE.Group();
+  const white = std(0xf2f4f6, 0.55);
+  const red = std(0xe2574c, 0.6);
+  const dark = std(0x3a4a5a, 0.5);
+
+  // Fuselage along +z
+  const fuselage = shadowed(new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 1.15, 6, 14), white));
+  fuselage.rotation.x = Math.PI / 2;
+  g.add(fuselage);
+  // Nose + propeller (spins via userData.prop)
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.24, 14, 10), red);
+  nose.position.set(0, 0, 0.72);
+  nose.scale.z = 0.7;
+  g.add(nose);
+  const prop = new THREE.Group();
+  const bladeGeo = new THREE.BoxGeometry(0.95, 0.09, 0.03);
+  const b1 = new THREE.Mesh(bladeGeo, dark);
+  const b2 = new THREE.Mesh(bladeGeo, dark);
+  b2.rotation.z = Math.PI / 2;
+  prop.add(b1, b2);
+  prop.position.set(0, 0, 0.95);
+  g.add(prop);
+  g.userData.prop = prop;
+  // Cockpit windshield
+  const shield = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 10), new THREE.MeshStandardMaterial({ color: 0x9fd4e8, roughness: 0.15 }));
+  shield.position.set(0, 0.26, 0.18);
+  shield.scale.set(0.8, 0.55, 1.1);
+  g.add(shield);
+  // High wing + red tips
+  const wing = shadowed(new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.07, 0.5), white));
+  wing.position.set(0, 0.42, 0.1);
+  g.add(wing);
+  for (const wx of [-1.1, 1.1]) {
+    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.075, 0.5), red);
+    tip.position.set(wx, 0.42, 0.1);
+    g.add(tip);
+  }
+  // Tail fin + stabilizer
+  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.42, 0.34), red);
+  fin.position.set(0, 0.28, -0.72);
+  g.add(fin);
+  const stab = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.05, 0.28), white);
+  stab.position.set(0, 0.12, -0.7);
+  g.add(stab);
+  // Twin floats + struts
+  for (const fx of [-0.42, 0.42]) {
+    const float = shadowed(new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 1.15, 4, 10), white));
+    float.rotation.x = Math.PI / 2;
+    float.position.set(fx, -0.42, 0.05);
+    g.add(float);
+    for (const fz of [-0.25, 0.35]) {
+      const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.42, 6), dark);
+      strut.position.set(fx, -0.2, fz);
+      strut.rotation.z = fx < 0 ? -0.12 : 0.12;
+      g.add(strut);
+    }
+  }
+  return g;
 }
 
 // ── Cozy corner props (from the official decorating refs) ───────────────────
@@ -1626,6 +1722,18 @@ export function buildIsland(): IslandBuild {
 
   group.add(cliffC, cliffB, cliffA, sand, wet, sea, grass, walkSurface);
 
+  // ── Seaplane dock (Dodo Airlines): pier reaching into the sea + moored plane ──
+  const pier = makePier();
+  pier.position.set(10.6, 0.12, 14.4);
+  pier.rotation.y = 0.22; // angle out toward open water
+  group.add(pier);
+  colliders.push({ x: 11.2, z: 15.2, r: 0.5 });
+
+  const seaplane = makeSeaplane();
+  seaplane.position.set(13.2, -0.82, 19.4);
+  seaplane.rotation.y = -0.5;
+  group.add(seaplane);
+
   // ── Interaction points (positions/radii fixed by contract) ────────────────
   // House & museum points sit in FRONT of their doors but OUTSIDE the
   // building colliders (otherwise the villager gets pushed out of range).
@@ -1657,7 +1765,16 @@ export function buildIsland(): IslandBuild {
       markerY: 2.9,
       radius: 2.1,
     },
+    {
+      id: 'airport',
+      label: 'Seaplane Dock',
+      hint: 'Fly to another island',
+      airport: true,
+      position: new THREE.Vector3(10.4, 0, 13.6),
+      markerY: 2.2,
+      radius: 2.4,
+    },
   ];
 
-  return { group, walkSurface, colliders, points, clouds, foam, flames, waves, sea, butterflies, gulls };
+  return { group, walkSurface, colliders, points, clouds, foam, flames, waves, sea, butterflies, gulls, seaplane };
 }

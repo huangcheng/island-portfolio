@@ -31,6 +31,8 @@ pnpm typecheck
 ```
 src/
   content.ts        # ALL user content: profile, links, projects, locations
+  site.ts           # islandverse federation: ISLANDS registry, SITE (VITE_SITE),
+                    #   DESTINATIONS for the Dodo Airlines flight board
   router.tsx        # route tree /, /about, /projects, /contact (null components)
   main.tsx
   styles.css        # page chrome only
@@ -58,7 +60,8 @@ Key flows:
 - `Engine` emits `interact(route)` (marker click / E key / dialog ✕) → `App` navigates.
 - InteractPoint actions: `route` → navigate; `enterTo` → iris wipe into an
   interior scene; `exit` → iris wipe back to the island (return pos saved);
-  `exhibit` → museum mini detail panel (no route change).
+  `exhibit` → museum placard; `airport` → Dodo Airlines departures board →
+  flyby transition + real navigation to a sister island (see `site.ts`).
 - Scenes: villager + camera (which carries the UI panels + iris quad) are
   reparented into the active scene; island world systems freeze indoors.
 

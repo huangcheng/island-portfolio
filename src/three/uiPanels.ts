@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Text } from 'troika-three-text';
 import { C, FONT_BOLD, FONT_HEAVY, makeIconMesh, makeLabel, makePanel, roundedRectShape, UiButton } from './uiKit';
 import { profile, projects, type Project } from '../content';
+import type { SisterIsland } from '../site';
 
 const _spineA = new THREE.Color();
 const _spineB = new THREE.Color();
@@ -91,6 +92,10 @@ export class UiPanels {
   onNavigate: ((to: string) => void) | null = null;
   /** Exhibit mini-panel closed (engine uses it to restore walking). */
   onExhibitClose: (() => void) | null = null;
+  /** Flight board closed. */
+  onBoardClose: (() => void) | null = null;
+  /** Departure chosen — engine plays the flyby + navigates. */
+  onDepart: ((url: string) => void) | null = null;
 
   constructor(
     private renderer: THREE.WebGLRenderer,
@@ -307,6 +312,104 @@ export class UiPanels {
   private closeExhibit() {
     this.clearDialog();
     this.onExhibitClose?.();
+  }
+
+  /** Dodo Airlines departures board — lists sister islands, click to fly. */
+  showFlightBoard(islands: SisterIsland[] | null) {
+    this.clearDialog();
+    if (!islands) return;
+
+    const W = 4.4;
+    const H = 1.05 + islands.length * 0.56 + 0.34;
+    const g = new THREE.Group();
+
+    const shadow = makeSoftShadow(W, H, 0.18, 0.16);
+    shadow.position.set(0.05, -0.08, -0.002);
+    g.add(shadow);
+    // Deep-navy airline board
+    const board = makePanel(W, H, 0.18, { bg: 0x1e3a5f, border: 0x14273c, borderWidth: 0.035 });
+    g.add(board);
+
+    const title = makeLabel('Dodo Airlines', { size: 0.14, color: 0xfff2d0, font: FONT_HEAVY, anchorX: 'left' });
+    title.position.set(-W / 2 + 0.36, H / 2 - 0.3, 0.002);
+    g.add(title);
+    const sub = makeLabel('D E P A R T U R E S', { size: 0.062, color: 0x8fc7e8, font: FONT_BOLD, anchorX: 'right', letterSpacing: 0.02 });
+    sub.position.set(W / 2 - 0.72, H / 2 - 0.31, 0.002);
+    g.add(sub);
+
+    // Gold close disc
+    const close = new UiButton({
+      w: 0.28, h: 0.28, r: 0.14, bg: C.gold, edge: C.goldEdge, label: '×', size: 0.13, color: C.heading, font: FONT_HEAVY,
+      onClick: () => this.closeFlightBoard(),
+    });
+    close.position.set(W / 2 - 0.28, H / 2 - 0.28, 0.002);
+    g.add(close);
+    this.dialogHots.push({ group: close, mesh: close.hitMesh, onClick: () => this.closeFlightBoard(), hoverT: 0 });
+
+    const fruitDot: Record<string, number> = { '🍊': 0xffa53c, '🍐': 0xa8d94a, '🍎': 0xe85a5a, '🍑': 0xffb08a, '🍒': 0xd94a6a };
+    islands.forEach((isl, i) => {
+      const online = isl.status === 'online';
+      const row = new THREE.Group();
+      const y = H / 2 - 0.82 - i * 0.56;
+      const rowW = W - 0.5;
+
+      const card = makePanel(rowW, 0.48, 0.1, { bg: online ? 0xfffdf2 : 0xe8e4da, border: 0xd9cdb4, borderWidth: 0.014 });
+      row.add(card);
+
+      // native-fruit color dot
+      const dot = new THREE.Mesh(
+        new THREE.CircleGeometry(0.07, 14),
+        new THREE.MeshBasicMaterial({ color: fruitDot[isl.nativeFruit] ?? 0xffa53c, toneMapped: false, depthTest: false, depthWrite: false, transparent: true }),
+      );
+      dot.position.set(-rowW / 2 + 0.24, 0, 0.002);
+      row.add(dot);
+
+      const name = makeLabel(isl.name, { size: 0.088, color: C.heading, font: FONT_BOLD, anchorX: 'left' });
+      name.position.set(-rowW / 2 + 0.42, 0.1, 0.002);
+      row.add(name);
+      const host = makeLabel(`${isl.host} · ${isl.theme}`, { size: 0.06, color: C.teal, anchorX: 'left' });
+      host.position.set(-rowW / 2 + 0.42, -0.12, 0.002);
+      row.add(host);
+
+      // Status pill
+      const stW = 0.78;
+      const pill = makePanel(stW, 0.24, 0.12, {
+        bg: online ? 0x8ac68a : 0xf5c31c,
+        border: online ? 0x6fb36f : 0xdba90e,
+        borderWidth: 0.012,
+      });
+      pill.position.set(rowW / 2 - stW / 2 - 0.14, 0, 0.002);
+      row.add(pill);
+      const stLabel = makeLabel(online ? 'ONLINE' : 'DELAYED', { size: 0.055, color: online ? 0xffffff : 0x725d42, font: FONT_HEAVY });
+      stLabel.position.set(rowW / 2 - stW / 2 - 0.14, 0, 0.004);
+      row.add(stLabel);
+
+      row.position.set(0, y, 0.002);
+      g.add(row);
+
+      if (online) {
+        const hit = card.children[1] as THREE.Mesh;
+        hit.userData.onClick = () => this.onDepart?.(isl.url);
+        this.dialogHots.push({ group: row, mesh: hit, onClick: hit.userData.onClick as () => void, hoverT: 0 });
+      }
+    });
+
+    const foot = makeLabel('No ticket required · flights leave immediately', { size: 0.062, color: 0x8fc7e8 });
+    foot.position.set(0, -H / 2 + 0.22, 0.002);
+    g.add(foot);
+
+    g.userData.W = W;
+    g.userData.H = H;
+    this.dialogGroup = g;
+    this.root.add(g);
+    this.popT = 0;
+    this.layout();
+  }
+
+  /** Hide the flight board + notify. */
+  private closeFlightBoard() {
+    this.clearDialog();
+    this.onBoardClose?.();
   }
 
   private dialogChrome(W: number, H: number, title: string, onClose?: () => void): THREE.Group {

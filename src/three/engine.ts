@@ -1,10 +1,11 @@
 import * as THREE from 'three';
-import { buildIsland, type InteractPoint, type IslandBuild } from './island';
+import { buildIsland, makeSeaplane, type InteractPoint, type IslandBuild } from './island';
 import { buildInterior, type InteriorBuild } from './interiors';
 import { Villager } from './villager';
 import { Controls } from './controls';
 import { Interactions } from './interactions';
 import { UiPanels } from './uiPanels';
+import { DESTINATIONS } from '../site';
 
 type Handler = (payload?: any) => void;
 
@@ -201,10 +202,17 @@ export class Engine {
   private iris: THREE.Mesh;
   private irisMat: THREE.ShaderMaterial;
   private irisAspect = 16 / 9;
-  private transition: { phase: 'close' | 'open'; t: number; swap: () => void } | null = null;
+  private transition: {
+    phase: 'close' | 'open';
+    t: number;
+    swap: () => void;
+    onClosed?: () => void;
+    flyGroup?: THREE.Group;
+  } | null = null;
 
   dialogOpen = false;
   exhibitOpen = false;
+  boardOpen = false;
 
   // Atmosphere
   private sky: THREE.Mesh;
@@ -339,6 +347,11 @@ export class Engine {
       this.exhibitOpen = false;
       this.controls.inputEnabled = !this.dialogOpen;
     };
+    this.ui.onBoardClose = () => {
+      this.boardOpen = false;
+      this.controls.inputEnabled = !this.dialogOpen && !this.exhibitOpen;
+    };
+    this.ui.onDepart = (url) => this.flyAway(url);
     // UI raycast gets first claim on every click, even while a dialog is open
     this.controls.pickUi = (ndc) => this.ui.tryClick(ndc);
 
@@ -433,7 +446,7 @@ export class Engine {
     this.ui.showRoute(path);
   }
 
-  /** Route an interact point: exit / enter / exhibit / route-navigate. */
+  /** Route an interact point: exit / enter / exhibit / airport / route. */
   private handleInteract(point: InteractPoint) {
     if (this.transition) return;
     if (point.exit) {
@@ -450,12 +463,24 @@ export class Engine {
       this.ui.showExhibit(point.exhibit);
       return;
     }
+    if (point.airport) {
+      this.boardOpen = true;
+      this.controls.inputEnabled = false;
+      this.ui.showFlightBoard(DESTINATIONS);
+      return;
+    }
     if (point.route) this.emit('interact', point.route);
   }
 
-  /** Escape key: close exhibit → close route dialog → nothing. */
+  /** Escape key: close board → close exhibit → close route dialog → nothing. */
   onEscape() {
     if (this.transition) return;
+    if (this.boardOpen) {
+      this.ui.showFlightBoard(null);
+      this.boardOpen = false;
+      this.controls.inputEnabled = true;
+      return;
+    }
     if (this.exhibitOpen) {
       this.ui.showExhibit(null);
       this.exhibitOpen = false;
@@ -465,9 +490,30 @@ export class Engine {
     if (this.dialogOpen) this.emit('interact', '/');
   }
 
-  private startSceneTransition(swap: () => void) {
+  /** Dodo Airlines departure: seaplane sweeps across while the iris closes. */
+  private flyAway(url: string) {
     if (this.transition) return;
-    this.transition = { phase: 'close', t: 0, swap };
+    const plane = makeSeaplane();
+    plane.scale.setScalar(0.85);
+    plane.rotation.y = -Math.PI / 2; // nose left
+    const halfW = 6 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * this.irisAspect;
+    plane.position.set(halfW + 3, -0.55, -6);
+    this.camera.add(plane);
+    this.startSceneTransition(() => {
+      // page navigation happens in onClosed; if it fails, reopen cleanly
+      this.camera.remove(plane);
+    }, url, plane);
+  }
+
+  private startSceneTransition(swap: () => void, navigateTo?: string, flyGroup?: THREE.Group) {
+    if (this.transition) return;
+    this.transition = {
+      phase: 'close',
+      t: 0,
+      swap,
+      onClosed: navigateTo ? () => (window.location.href = navigateTo) : undefined,
+      flyGroup,
+    };
     this.iris.visible = true;
     this.controls.inputEnabled = false;
   }
@@ -568,7 +614,7 @@ export class Engine {
   }
 
   private onKeyDown = (e: KeyboardEvent) => {
-    if (e.code === 'KeyE' && !this.dialogOpen && !this.exhibitOpen && !this.transition) {
+    if (e.code === 'KeyE' && !this.dialogOpen && !this.exhibitOpen && !this.boardOpen && !this.transition) {
       this.interactions.interactNearest();
     }
   };
@@ -607,12 +653,25 @@ export class Engine {
       const maxR = Math.hypot(this.irisAspect, 1) * 1.06;
       const k = Math.min(1, tr.t);
       const e = k * k * (3 - 2 * k); // smoothstep
+
+      // Departure flyby: seaplane sweeps right→left across the view
+      if (tr.flyGroup) {
+        const kk = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2; // easeInOutQuad
+        const halfW = 6 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * this.irisAspect;
+        tr.flyGroup.position.x = THREE.MathUtils.lerp(halfW + 3, -(halfW + 3), kk);
+        tr.flyGroup.position.y = -0.55 + Math.sin(kk * Math.PI) * 0.55;
+        tr.flyGroup.rotation.z = -0.1 - Math.sin(kk * Math.PI) * 0.12;
+        const prop = tr.flyGroup.userData.prop as THREE.Group | undefined;
+        if (prop) prop.rotation.z += dt * 28;
+      }
+
       if (tr.phase === 'close') {
         this.irisMat.uniforms.uRadius.value = maxR * (1 - e);
         if (k >= 1) {
           tr.swap();
           tr.phase = 'open';
           tr.t = 0;
+          if (tr.onClosed) tr.onClosed();
         }
       } else {
         this.irisMat.uniforms.uRadius.value = maxR * e;
@@ -691,6 +750,12 @@ export class Engine {
       // Water shader time + night tint
       (this.island.sea.material as THREE.ShaderMaterial).uniforms.uTime.value = this.time;
       (this.island.sea.material as THREE.ShaderMaterial).uniforms.uNight.value = this.nightFactor;
+
+      // Moored seaplane bobs on the water, prop idles
+      this.island.seaplane.position.y = -0.82 + Math.sin(this.time * 0.85) * 0.05;
+      this.island.seaplane.rotation.z = Math.sin(this.time * 0.6) * 0.03;
+      const idleProp = this.island.seaplane.userData.prop as THREE.Group | undefined;
+      if (idleProp) idleProp.rotation.z += dt * 3.5;
 
       // Unlit white accents dim to moonlit tones at night
       const dim = 1 - this.nightFactor * 0.72;
