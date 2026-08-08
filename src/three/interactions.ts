@@ -3,7 +3,8 @@ import type { InteractPoint } from './island';
 
 let markerTexture: THREE.CanvasTexture | null = null;
 
-/** Draws the classic AC-style "!" attention bubble as a canvas texture. */
+/** Draws the AC-style "!" emote bubble: cream speech bubble, soft curved
+ *  tail, chunky rounded red "!" (shapes only — no font dependency). */
 function getMarkerTexture(): THREE.CanvasTexture {
   if (markerTexture) return markerTexture;
   const canvas = document.createElement('canvas');
@@ -11,25 +12,44 @@ function getMarkerTexture(): THREE.CanvasTexture {
   canvas.height = 128;
   const ctx = canvas.getContext('2d')!;
   ctx.clearRect(0, 0, 128, 128);
-  ctx.fillStyle = '#ffd94d';
-  ctx.strokeStyle = '#6b4f2a';
-  ctx.lineWidth = 8;
+
+  const cream = '#fffef7';
+  const edge = '#6b4f2a';
+  const pop = '#e85a4a';
+
+  // Soft drop shadow under the bubble
+  ctx.fillStyle = 'rgba(60, 40, 20, 0.18)';
   ctx.beginPath();
-  ctx.arc(64, 60, 46, 0, Math.PI * 2);
+  ctx.ellipse(66, 68, 42, 40, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.stroke();
+
+  // Curved tail: two overlapping circles tapering to a point at bottom-left
+  ctx.fillStyle = cream;
+  ctx.strokeStyle = edge;
+  ctx.lineWidth = 5;
   ctx.beginPath();
-  ctx.moveTo(52, 96);
-  ctx.lineTo(64, 120);
-  ctx.lineTo(76, 96);
+  ctx.moveTo(46, 92);
+  ctx.quadraticCurveTo(40, 110, 30, 118);
+  ctx.quadraticCurveTo(48, 116, 58, 100);
   ctx.closePath();
   ctx.fill();
+
+  // Main bubble (circle), stroked
+  ctx.beginPath();
+  ctx.arc(64, 58, 42, 0, Math.PI * 2);
+  ctx.fillStyle = cream;
+  ctx.fill();
   ctx.stroke();
-  ctx.fillStyle = '#4a3520';
-  ctx.font = '800 64px "Baloo 2", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('!', 64, 62);
+
+  // Chunky rounded "!" — rounded bar + dot
+  ctx.fillStyle = pop;
+  ctx.beginPath();
+  ctx.roundRect(56, 28, 16, 36, 8);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(64, 78, 9, 0, Math.PI * 2);
+  ctx.fill();
+
   markerTexture = new THREE.CanvasTexture(canvas);
   markerTexture.colorSpace = THREE.SRGBColorSpace;
   return markerTexture;
