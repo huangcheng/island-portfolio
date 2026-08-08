@@ -1193,21 +1193,34 @@ export function buildIsland(): IslandBuild {
   const foam: THREE.Mesh[] = [];
   const rng = mulberry32(424242);
 
-  // ── Terrain: grass top, rounded grass lip, beach sand, layered dirt cliff ─
+  // ── Terrain: ORGANIC wavy grass edge over beach sand, layered dirt cliff ──
+  // A perfect circle edge reads as a hard "cutting line" — AC shorelines wobble.
   const grassMat = new THREE.MeshStandardMaterial({ map: makeGrassTexture(), roughness: 0.92 });
-  const grass = new THREE.Mesh(new THREE.CircleGeometry(15, 96), grassMat);
+  const grassShape = new THREE.Shape();
+  const EDGE_N = 128;
+  for (let i = 0; i <= EDGE_N; i++) {
+    const t = (i / EDGE_N) * Math.PI * 2;
+    const r = 15 + Math.sin(t * 5 + 0.7) * 0.3 + Math.sin(t * 9 + 2.1) * 0.16;
+    const x = Math.cos(t) * r;
+    const y = Math.sin(t) * r;
+    if (i === 0) grassShape.moveTo(x, y);
+    else grassShape.lineTo(x, y);
+  }
+  const grassGeo = new THREE.ShapeGeometry(grassShape, 4);
+  // ShapeGeometry UVs are raw XY coords — normalise to 0..1 so the grass
+  // texture tiles exactly like the old CircleGeometry (repeat 2×)
+  {
+    const pos = grassGeo.attributes.position;
+    const uvs = grassGeo.attributes.uv;
+    for (let i = 0; i < pos.count; i++) {
+      uvs.setXY(i, pos.getX(i) / 32 + 0.5, pos.getY(i) / 32 + 0.5);
+    }
+    uvs.needsUpdate = true;
+  }
+  const grass = new THREE.Mesh(grassGeo, grassMat);
   grass.rotation.x = -Math.PI / 2;
   grass.position.y = 0.02;
   grass.receiveShadow = true;
-
-  // Rounded grass overhang lip ringing the grass/sand boundary (AC signature)
-  // Nearly-flush rounded rim at the grass/sand seam — hides the cliff joint
-  // without reading as a tube lying on the lawn
-  const lip = new THREE.Mesh(new THREE.TorusGeometry(15.3, 0.14, 10, 120), std(0x6cb83f));
-  lip.rotation.x = -Math.PI / 2;
-  lip.position.y = -0.1;
-  lip.scale.y = 0.5;
-  lip.receiveShadow = true;
 
   // Beach sand ring (full disc, grass sits on top revealing the ring 15→18)
   const sand = new THREE.Mesh(
@@ -1606,7 +1619,7 @@ export function buildIsland(): IslandBuild {
     group.add(gull);
   }
 
-  group.add(cliffC, cliffB, cliffA, sand, wet, sea, grass, lip, walkSurface);
+  group.add(cliffC, cliffB, cliffA, sand, wet, sea, grass, walkSurface);
 
   // ── Interaction points (positions/radii fixed by contract) ────────────────
   // House & museum points sit in FRONT of their doors but OUTSIDE the
