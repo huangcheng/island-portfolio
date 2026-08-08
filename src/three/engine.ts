@@ -332,8 +332,10 @@ export class Engine {
 
     this.controls = new Controls(this.canvas, this.camera, this.villager, {
       walkSurface: this.island.walkSurface,
+      extraWalkSurfaces: this.island.extraWalkSurfaces,
       colliders: this.island.colliders,
       bounds: { type: 'circle', r: 16.8 },
+      walkZones: this.island.walkZones,
     });
     this.controls.snapCamera();
 
@@ -536,8 +538,10 @@ export class Engine {
       this.villager.group.rotation.y = this.villager.heading;
       this.controls.setEnvironment({
         walkSurface: this.island.walkSurface,
+        extraWalkSurfaces: this.island.extraWalkSurfaces,
         colliders: this.island.colliders,
         bounds: { type: 'circle', r: 16.8 },
+        walkZones: this.island.walkZones,
       });
       this.controls.snapCamera();
       this.interactions.setPoints(this.island.points);

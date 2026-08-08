@@ -47,6 +47,10 @@ export interface IslandBuild {
   gulls: THREE.Group[];
   /** The moored seaplane at the pier — the engine bobs it + spins the prop. */
   seaplane: THREE.Group;
+  /** Extra invisible raycast planes for click-to-move (pier deck). */
+  extraWalkSurfaces: THREE.Mesh[];
+  /** Raised walkable zones (bounds-exempt, set ground height). */
+  walkZones: { minX: number; maxX: number; minZ: number; maxZ: number; y: number }[];
 }
 
 // ── Palette ───────────────────────────────────────────────────────────────
@@ -1724,10 +1728,20 @@ export function buildIsland(): IslandBuild {
 
   // ── Seaplane dock (Dodo Airlines): pier reaching into the sea + moored plane ──
   const pier = makePier();
-  pier.position.set(10.6, 0.12, 14.4);
-  pier.rotation.y = 0.22; // angle out toward open water
+  pier.position.set(10.6, 0.12, 14.4); // straight out to sea (+z)
   group.add(pier);
-  colliders.push({ x: 11.2, z: 15.2, r: 0.5 });
+  // The pier deck is WALKABLE: raycast plane + raised walk zone (bounds-exempt)
+  const pierDeck = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.7, 5.7),
+    new THREE.MeshBasicMaterial({ visible: false }),
+  );
+  pierDeck.rotation.x = -Math.PI / 2;
+  pierDeck.position.set(10.6, 0.165, 17.15);
+  group.add(pierDeck);
+  const pierZone = { minX: 9.75, maxX: 11.45, minZ: 14.3, maxZ: 20.0, y: 0.165 };
+  // Approach strip: bounds-exempt but ground-level, overlapping the r16.8
+  // circle edge (at x≈10.6 the circle ends at z≈13.05) so the pier is reachable.
+  const pierApproach = { minX: 9.75, maxX: 11.45, minZ: 12.6, maxZ: 14.4, y: 0 };
 
   const seaplane = makeSeaplane();
   seaplane.position.set(13.2, -0.82, 19.4);
@@ -1770,11 +1784,11 @@ export function buildIsland(): IslandBuild {
       label: 'Seaplane Dock',
       hint: 'Fly to another island',
       airport: true,
-      position: new THREE.Vector3(10.4, 0, 13.6),
-      markerY: 2.2,
-      radius: 2.4,
+      position: new THREE.Vector3(10.6, 0, 19.2), // pier end, next to the plane
+      markerY: 1.4,
+      radius: 1.9,
     },
   ];
 
-  return { group, walkSurface, colliders, points, clouds, foam, flames, waves, sea, butterflies, gulls, seaplane };
+  return { group, walkSurface, colliders, points, clouds, foam, flames, waves, sea, butterflies, gulls, seaplane, extraWalkSurfaces: [pierDeck], walkZones: [pierZone, pierApproach] };
 }

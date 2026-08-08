@@ -45,6 +45,9 @@ export class Villager {
   heading = Math.PI;
   /** Walk speed in world units / second. */
   speed = 4.4;
+  /** Ground height under the villager (raised decks like the pier). */
+  groundY = 0;
+  private gy = 0; // smoothed groundY
 
   private walkT = Math.random() * Math.PI * 2;
   private idleT = 0;
@@ -273,10 +276,11 @@ export class Villager {
     this.tailGroup.rotation.z = Math.sin(this.idleT * 2.2) * (0.12 + 0.1 * b);
     this.tailGroup.rotation.x = 0.05 + Math.sin(this.idleT * 2.9) * 0.05;
 
-    // Hop / breathing bob
+    // Hop / breathing bob on top of (smoothed) ground height
+    this.gy += (this.groundY - this.gy) * Math.min(1, dt * 12);
     const hop = Math.abs(Math.sin(this.walkT)) * 0.05 * b;
     const idleBob = Math.sin(this.idleT * 2.1) * 0.012 * (1 - b);
-    this.group.position.y = hop + idleBob;
+    this.group.position.y = this.gy + hop + idleBob;
   }
 
   private updateBlink(dt: number) {

@@ -9,10 +9,23 @@ export type WalkBounds =
   | { type: 'circle'; r: number }
   | { type: 'box'; minX: number; maxX: number; minZ: number; maxZ: number };
 
+/** Raised walkable area (e.g. the pier deck): exempt from circle bounds,
+ *  sets ground height while inside. */
+export interface WalkZone {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  y: number;
+}
+
 export interface Environment {
   walkSurface: THREE.Mesh;
+  /** Extra invisible raycast planes (pier deck etc.). */
+  extraWalkSurfaces?: THREE.Mesh[];
   colliders: Collider[];
   bounds: WalkBounds;
+  walkZones?: WalkZone[];
 }
 
 /**
@@ -42,8 +55,10 @@ export class Controls {
   private readonly camOffset = new THREE.Vector3(0, 8.6, 12.6);
 
   private walkSurface: THREE.Mesh;
+  private extraWalkSurfaces: THREE.Mesh[] = [];
   private colliders: Collider[];
   private bounds: WalkBounds = { type: 'circle', r: 16.8 };
+  private walkZones: WalkZone[] = [];
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -52,8 +67,10 @@ export class Controls {
     env: Environment,
   ) {
     this.walkSurface = env.walkSurface;
+    this.extraWalkSurfaces = env.extraWalkSurfaces ?? [];
     this.colliders = env.colliders;
     this.bounds = env.bounds;
+    this.walkZones = env.walkZones ?? [];
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('blur', this.onBlur);
@@ -63,9 +80,19 @@ export class Controls {
   /** Swap the active environment (island ↔ interior scene). */
   setEnvironment(env: Environment) {
     this.walkSurface = env.walkSurface;
+    this.extraWalkSurfaces = env.extraWalkSurfaces ?? [];
     this.colliders = env.colliders;
     this.bounds = env.bounds;
+    this.walkZones = env.walkZones ?? [];
     this.clickTarget = null;
+  }
+
+  /** Ground height under a point (raised decks) + whether it's in a zone. */
+  private zoneAt(x: number, z: number): WalkZone | null {
+    for (const zn of this.walkZones) {
+      if (x >= zn.minX && x <= zn.maxX && z >= zn.minZ && z <= zn.maxZ) return zn;
+    }
+    return null;
   }
 
   dispose() {
@@ -103,10 +130,12 @@ export class Controls {
     if (this.pickInteractable?.(this.ndc)) return;
 
     this.raycaster.setFromCamera(this.ndc, this.camera);
-    const hit = this.raycaster.intersectObject(this.walkSurface, false)[0];
+    const hit = this.raycaster.intersectObjects([this.walkSurface, ...this.extraWalkSurfaces], false)[0];
     if (hit) {
       this.clickTarget = hit.point.clone();
-      this.clickTarget.y = 0;
+      // Respect raised deck heights (pier) but never sink below the lawn
+      const zn = this.zoneAt(hit.point.x, hit.point.z);
+      this.clickTarget.y = zn ? zn.y : 0;
       this.onGroundClick?.();
     }
   };
@@ -154,11 +183,16 @@ export class Controls {
         p.z = c.z + (dz / d) * min;
       }
     }
+    // Raised-deck zones (pier): set ground height, exempt from circle bounds
+    const zn = this.zoneAt(p.x, p.z);
+    this.villager.groundY = zn ? zn.y : 0;
     if (this.bounds.type === 'circle') {
-      const dist = Math.hypot(p.x, p.z);
-      if (dist > this.bounds.r) {
-        p.x = (p.x / dist) * this.bounds.r;
-        p.z = (p.z / dist) * this.bounds.r;
+      if (!zn) {
+        const dist = Math.hypot(p.x, p.z);
+        if (dist > this.bounds.r) {
+          p.x = (p.x / dist) * this.bounds.r;
+          p.z = (p.z / dist) * this.bounds.r;
+        }
       }
     } else {
       const b = this.bounds;
