@@ -275,10 +275,9 @@ export class Engine {
       colliders: this.island.colliders,
       bounds: { type: 'circle', r: 16.8 },
     });
-    this.controls.pickInteractable = (ndc) => this.interactions.pick(ndc, this.camera);
     this.controls.snapCamera();
 
-    this.interactions = new Interactions(this.scene, this.island.points);
+    this.interactions = new Interactions(this.island.points);
     this.interactions.onPrompt = (text) => this.ui.setPrompt(text);
     this.interactions.onInteract = (point) => this.handleInteract(point);
 
@@ -442,7 +441,7 @@ export class Engine {
         bounds: { type: 'circle', r: 16.8 },
       });
       this.controls.snapCamera();
-      this.interactions.setScene(this.scene, this.island.points);
+      this.interactions.setPoints(this.island.points);
     });
   }
 
@@ -468,7 +467,7 @@ export class Engine {
       bounds: { type: 'box', ...build.bounds },
     });
     this.controls.snapCamera();
-    this.interactions.setScene(build.scene, build.points);
+    this.interactions.setPoints(build.points);
   }
 
   start() {
