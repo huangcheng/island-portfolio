@@ -210,19 +210,48 @@ export class UiPanels {
     this.layout();
   }
 
-  /** Exhibit mini-panel (museum frames) — independent of routes. */
+  /** Exhibit info placard (museum frames) — a flat museum wall-label, NOT a
+   *  speech bubble. Independent of routes. */
   showExhibit(p: Project | null) {
     this.clearDialog();
     if (!p) return;
 
-    const W = 3.9;
-    const H = 1.66;
-    const g = this.dialogChrome(W, H, p.title, () => this.onExhibitClose?.());
+    const W = 4.0;
+    const H = 1.56;
+    const g = new THREE.Group();
+
+    const shadow = makeSoftShadow(W, H, 0.1, 0.16);
+    shadow.position.set(0.05, -0.08, -0.002);
+    g.add(shadow);
+    // Ivory plaque with a dark wood border (gallery wall-label style)
+    const plaque = makePanel(W, H, 0.1, { bg: 0xfffdf2, border: 0x54331a, borderWidth: 0.035 });
+    g.add(plaque);
+
+    // Title top-left, heavy dark
+    const title = makeLabel(p.title, { size: 0.115, color: C.heading, font: FONT_HEAVY, anchorX: 'left' });
+    title.position.set(-W / 2 + 0.34, H / 2 - 0.26, 0.002);
+    g.add(title);
+    // Thin gold divider under the title (museum label rule)
+    const rule = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.5, 0.016),
+      new THREE.MeshBasicMaterial({ color: 0xc9a24a, toneMapped: false, depthTest: false, depthWrite: false, transparent: true }),
+    );
+    rule.position.set(-W / 2 + 0.34 + 0.75, H / 2 - 0.4, 0.002);
+    g.add(rule);
+
+    // Close ✕ — small dark-wood disc top-right
+    const close = new UiButton({
+      w: 0.28, h: 0.28, r: 0.14, bg: 0x54331a, edge: 0x3a2515, label: '×', size: 0.13, color: 0xfff2d0, font: FONT_HEAVY,
+      onClick: () => this.closeExhibit(),
+    });
+    close.position.set(W / 2 - 0.26, H / 2 - 0.24, 0.002);
+    g.add(close);
+    this.dialogHots.push({ group: close, mesh: close.hitMesh, onClick: () => this.closeExhibit(), hoverT: 0 });
 
     const tagline = makeLabel(p.tagline, {
-      size: 0.082, color: C.body, anchorX: 'left', anchorY: 'top', maxWidth: W - 0.85, align: 'left',
+      size: 0.08, color: C.body, anchorX: 'left', anchorY: 'top', maxWidth: W - 0.7, align: 'left',
     });
-    tagline.position.set(-(W / 2 - 0.42), H / 2 - 0.38, 0.002);
+    tagline.position.set(-W / 2 + 0.34, H / 2 - 0.52, 0.002);
     g.add(tagline);
 
     // Star pill (drawn star + count)
@@ -238,7 +267,7 @@ export class UiPanels {
     const starLabel = makeLabel(String(p.stars), { size: 0.08, color: C.heading, font: FONT_HEAVY, anchorX: 'left' });
     starLabel.position.set(-0.03, 0, 0.002);
     stars.add(starLabel);
-    stars.position.set(-W / 2 + 0.55, -H / 2 + 0.36, 0.002);
+    stars.position.set(-W / 2 + 0.55, -H / 2 + 0.32, 0.002);
     g.add(stars);
 
     // Stack chips next to the stars
@@ -254,14 +283,15 @@ export class UiPanels {
       chips.add(chip);
       cx += cw + 0.08;
     }
-    chips.position.set(-W / 2 + 1.0, -H / 2 + 0.36, 0.002);
+    chips.position.set(-W / 2 + 1.0, -H / 2 + 0.32, 0.002);
     g.add(chips);
 
     const gh = new UiButton({
       w: 1.3, h: 0.38, bg: C.blue, edge: C.blueEdge, label: 'GitHub', size: 0.1,
+      icon: makeIconMesh('/icons/github.svg'),
       onClick: () => window.open(p.repo, '_blank', 'noopener'),
     });
-    gh.position.set(W / 2 - 0.85, -H / 2 + 0.36, 0.002);
+    gh.position.set(W / 2 - 0.85, -H / 2 + 0.32, 0.002);
     g.add(gh);
     this.dialogHots.push({ group: gh, mesh: gh.hitMesh, onClick: () => window.open(p.repo, '_blank', 'noopener'), hoverT: 0 });
 
@@ -271,6 +301,12 @@ export class UiPanels {
     this.root.add(g);
     this.popT = 0;
     this.layout();
+  }
+
+  /** Hide the exhibit placard + notify (engine restores walking). */
+  private closeExhibit() {
+    this.clearDialog();
+    this.onExhibitClose?.();
   }
 
   private dialogChrome(W: number, H: number, title: string, onClose?: () => void): THREE.Group {
