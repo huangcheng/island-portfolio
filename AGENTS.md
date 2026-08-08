@@ -37,7 +37,8 @@ src/
   types/troika-three-text.d.ts  # Text-extends-Mesh typing fix (REQUIRED)
   three/
     engine.ts       # renderer/scenes/loop; scene swap + iris wipe; setRoute;
-                    #   onEscape; events: ready/interact
+                    #   onEscape; updateDayNight (real-time sky/light palette
+                    #   lerp + sun/moon path + stars); events: ready/interact
     island.ts       # terrain, sea shader, vegetation, paths, props, colliders,
                     #   InteractPoint (route | enterTo | exit | exhibit actions)
     interiors.ts    # house + museum interior scenes (buildInterior contract)

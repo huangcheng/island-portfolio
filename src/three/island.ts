@@ -1014,6 +1014,7 @@ function makeSeaMaterial(): THREE.ShaderMaterial {
     uniforms: {
       uTime: { value: 0 },
       uSunDir: { value: new THREE.Vector3(13, 15, 9).normalize() },
+      uNight: { value: 0 },
     },
     vertexShader: /* glsl */ `
       varying vec3 vWorld;
@@ -1026,6 +1027,7 @@ function makeSeaMaterial(): THREE.ShaderMaterial {
     fragmentShader: /* glsl */ `
       uniform float uTime;
       uniform vec3 uSunDir;
+      uniform float uNight;
       varying vec3 vWorld;
 
       float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -1071,6 +1073,9 @@ function makeSeaMaterial(): THREE.ShaderMaterial {
         // Subtle animated caustic web in the shallows
         float ca = noise(p * 0.5 + t * 0.15) * noise(p * 0.45 - t * 0.12);
         col += vec3(0.10, 0.18, 0.20) * smoothstep(0.24, 0.4, ca) * (1.0 - smoothstep(30.0, 60.0, r));
+
+        // Moonlit tint at night
+        col *= mix(vec3(1.0), vec3(0.16, 0.24, 0.46), uNight * 0.82);
 
         gl_FragColor = vec4(col, 1.0);
         #include <tonemapping_fragment>

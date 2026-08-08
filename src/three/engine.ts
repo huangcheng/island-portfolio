@@ -24,6 +24,31 @@ const SUN_DIR = SUN_OFFSET.clone().normalize();
 const FOG_COLOR = 0xdfe8e6;
 const HAZE_COLOR = new THREE.Color(FOG_COLOR);
 
+// ── Real-time day/night (AC-style time sync) ───────────────────────────────
+interface DayStop {
+  h: number;
+  horizon: number;
+  mid: number;
+  zenith: number;
+  fog: number;
+  sun: number; // key light colour
+  sunI: number;
+  hemiI: number;
+  exposure: number;
+  night: number; // 0 day → 1 full night
+}
+const DAY_STOPS: DayStop[] = [
+  { h: 0.0, horizon: 0x1a2c47, mid: 0x101f38, zenith: 0x0a1526, fog: 0x1a2c47, sun: 0xb8c8f0, sunI: 0.22, hemiI: 0.22, exposure: 0.9, night: 1.0 },
+  { h: 4.5, horizon: 0x1a2c47, mid: 0x101f38, zenith: 0x0a1526, fog: 0x1a2c47, sun: 0xb8c8f0, sunI: 0.22, hemiI: 0.22, exposure: 0.9, night: 1.0 },
+  { h: 6.0, horizon: 0xffc98a, mid: 0x9fb8e0, zenith: 0x5f9fd8, fog: 0xffd9a8, sun: 0xffb56b, sunI: 1.3, hemiI: 0.65, exposure: 1.06, night: 0.3 },
+  { h: 8.0, horizon: 0xffe9c9, mid: 0xa8dcf0, zenith: 0x6ec3f0, fog: 0xdfe8e6, sun: 0xfff2d9, sunI: 2.0, hemiI: 0.92, exposure: 1.12, night: 0.0 },
+  { h: 16.5, horizon: 0xffe9c9, mid: 0xa8dcf0, zenith: 0x6ec3f0, fog: 0xdfe8e6, sun: 0xfff2d9, sunI: 2.0, hemiI: 0.92, exposure: 1.12, night: 0.0 },
+  { h: 18.0, horizon: 0xffb36b, mid: 0xe8a0b8, zenith: 0x8a70b8, fog: 0xe8a878, sun: 0xff9a4a, sunI: 1.7, hemiI: 0.6, exposure: 1.08, night: 0.15 },
+  { h: 19.5, horizon: 0x9a6a9a, mid: 0x54487e, zenith: 0x22305c, fog: 0x7a5f7e, sun: 0xd8908a, sunI: 0.8, hemiI: 0.45, exposure: 1.0, night: 0.65 },
+  { h: 20.5, horizon: 0x1a2c47, mid: 0x101f38, zenith: 0x0a1526, fog: 0x1a2c47, sun: 0xb8c8f0, sunI: 0.22, hemiI: 0.22, exposure: 0.9, night: 1.0 },
+  { h: 24.0, horizon: 0x1a2c47, mid: 0x101f38, zenith: 0x0a1526, fog: 0x1a2c47, sun: 0xb8c8f0, sunI: 0.22, hemiI: 0.22, exposure: 0.9, night: 1.0 },
+];
+
 // ── Procedural sky shader ────────────────────────────────────────────────────
 // Big inverted sphere centred on the camera. A three-stop vertical gradient
 // (cream → cyan → blue) plus a soft, slowly breathing warm sun glow. Rendered
@@ -45,8 +70,12 @@ const SKY_FRAG = /* glsl */ `
   uniform vec3 uSunDir;
   uniform vec3 uSunColor;
   uniform vec3 uHaze;
+  uniform vec3 uMoonDir;
+  uniform float uNight;
   uniform float uTime;
   varying vec3 vDir;
+
+  float hash21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 
   void main() {
     vec3 dir = normalize(vDir);
@@ -63,9 +92,7 @@ const SKY_FRAG = /* glsl */ `
     // against the fogged sea reads as warm haze rather than a hard line.
     col = mix(col, uHorizon * 0.94, smoothstep(0.0, -0.18, y));
 
-    // Soft haze band straddling the visible horizon: pulls the lower sky
-    // toward the same tone the distant sea fogs out to, so the silhouette
-    // edge reads as atmosphere instead of a hard sky/sea seam.
+    // Soft haze band straddling the visible horizon.
     float haze = (1.0 - smoothstep(-0.04, 0.14, y)) * 0.85;
     col = mix(col, uHaze, haze);
 
@@ -74,7 +101,26 @@ const SKY_FRAG = /* glsl */ `
     float breath = 0.82 + 0.18 * sin(uTime * 0.22);
     float core = pow(d, 7.0) * 0.55;
     float halo = pow(d, 2.4) * 0.20;
-    col += uSunColor * (core + halo) * breath;
+    col += uSunColor * (core + halo) * breath * (1.0 - uNight);
+
+    // Moon — soft bright disc + cool halo, night only
+    float md = max(dot(dir, normalize(uMoonDir)), 0.0);
+    float moonDisc = smoothstep(0.9991, 0.9996, md);
+    float moonGlow = pow(md, 55.0) * 0.32;
+    col += (vec3(0.99, 0.97, 0.88) * moonDisc + vec3(0.72, 0.78, 0.95) * moonGlow) * uNight;
+
+    // Stars — twinkling points jittered inside sky cells, night only
+    vec2 sp = vec2(atan(dir.x, dir.z) * 57.2958 * 2.2, y * 90.0);
+    vec2 cell = floor(sp);
+    float h = hash21(cell);
+    if (h > 0.62) {
+      vec2 fp = fract(sp);
+      vec2 starPos = vec2(hash21(cell + 1.7), hash21(cell + 4.3)) * 0.6 + 0.2;
+      float sd = length(fp - starPos);
+      float twinkle = 0.5 + 0.5 * sin(uTime * 2.4 + h * 61.0);
+      float star = smoothstep(0.09, 0.02, sd) * twinkle;
+      col += vec3(1.0, 0.98, 0.92) * star * uNight * smoothstep(0.02, 0.18, y);
+    }
 
     // Colours live in linear space (uniforms were converted on set); encode to
     // the renderer's sRGB output ourselves. toneMapped is false on this
@@ -145,6 +191,11 @@ export class Engine {
   /** Cached PointLight co-located with each flame, for flicker modulation. */
   private flameLights: ({ light: THREE.PointLight; base: number } | null)[] = [];
   private dirLight: THREE.DirectionalLight;
+  private hemi: THREE.HemisphereLight;
+  /** Current key-light offset (sun by day, moon by night) — set by updateDayNight. */
+  private lightOffset = SUN_OFFSET.clone();
+  private nightFactor = 0;
+  private _cB = new THREE.Color();
 
   // Iris-wipe transition state (AC door animation)
   private iris: THREE.Mesh;
@@ -196,6 +247,8 @@ export class Engine {
         uZenith: { value: SKY_ZENITH },
         uSunDir: { value: SUN_DIR },
         uSunColor: { value: SUN_GLOW },
+        uMoonDir: { value: new THREE.Vector3(-0.5, 0.55, -0.65).normalize() },
+        uNight: { value: 0 },
         uHaze: { value: HAZE_COLOR },
         uTime: { value: 0 },
       },
@@ -212,9 +265,8 @@ export class Engine {
     this.sky.frustumCulled = false;
     this.scene.add(this.sky);
 
-    // ── Lighting rig: warm afternoon on a pastel island ──────────────────────
-    // Pastel sky/ground bounce — softer than before for a creamy fill.
-    const hemi = new THREE.HemisphereLight(0xbfe3ff, 0x7ab84a, 0.92);
+    // ── Lighting rig: time-of-day driven (real-time sync, AC style) ─────────
+    this.hemi = new THREE.HemisphereLight(0xbfe3ff, 0x7ab84a, 0.92);
 
     // Warm key light from a low-ish afternoon angle; shadow box follows the
     // villager. normalBias lifts samples along the surface normal to kill
@@ -237,7 +289,7 @@ export class Engine {
     const fill = new THREE.DirectionalLight(0xbfd9ff, 0.35);
     fill.position.set(-13, 9, -7);
 
-    this.scene.add(hemi, this.dirLight, this.dirLight.target, fill);
+    this.scene.add(this.hemi, this.dirLight, this.dirLight.target, fill);
 
     // ── World ────────────────────────────────────────────────────────────────
     this.island = buildIsland();
@@ -322,6 +374,7 @@ export class Engine {
 
     // Centre the sky on the camera before the first frame so there's no flash.
     this.sky.position.copy(this.camera.position);
+    this.updateDayNight();
 
     window.addEventListener('resize', this.onResize);
     window.addEventListener('keydown', this.onKeyDown);
@@ -477,6 +530,43 @@ export class Engine {
     this.renderer.setAnimationLoop(this.tick);
   }
 
+  /** Real-time day/night sync: lerp the sky/light palette by local clock. */
+  private updateDayNight() {
+    const now = new Date();
+    const h = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
+
+    let i = 0;
+    while (i < DAY_STOPS.length - 2 && DAY_STOPS[i + 1].h < h) i++;
+    const a = DAY_STOPS[i];
+    const b = DAY_STOPS[i + 1];
+    const k = THREE.MathUtils.smoothstep((h - a.h) / (b.h - a.h), 0, 1);
+    const u = this.skyMat.uniforms;
+    const lc = (ca: number, cb: number, target: THREE.Color) => {
+      target.set(ca).lerp(this._cB.set(cb), k);
+    };
+    lc(a.horizon, b.horizon, u.uHorizon.value as THREE.Color);
+    lc(a.mid, b.mid, u.uMid.value as THREE.Color);
+    lc(a.zenith, b.zenith, u.uZenith.value as THREE.Color);
+    lc(a.fog, b.fog, u.uHaze.value as THREE.Color);
+    lc(a.fog, b.fog, (this.scene.fog as THREE.Fog).color);
+    lc(a.sun, b.sun, u.uSunColor.value as THREE.Color);
+    this.dirLight.color.copy(u.uSunColor.value as THREE.Color);
+    this.dirLight.intensity = THREE.MathUtils.lerp(a.sunI, b.sunI, k);
+    this.hemi.intensity = THREE.MathUtils.lerp(a.hemiI, b.hemiI, k);
+    this.renderer.toneMappingExposure = THREE.MathUtils.lerp(a.exposure, b.exposure, k);
+
+    this.nightFactor = THREE.MathUtils.lerp(a.night, b.night, k);
+    u.uNight.value = this.nightFactor;
+
+    // Sun rides east→west 6:00–18:00; the moon covers the night shift.
+    const day = h >= 6 && h <= 18;
+    const az = day ? (Math.PI * (h - 6)) / 12 : (Math.PI * ((h + 24 - 18) % 24)) / 12;
+    const el = Math.sin(az);
+    this.lightOffset.set(Math.cos(az) * 16, 3 + Math.max(0.12, el) * 13, 8);
+    u.uSunDir.value.copy(this.lightOffset).normalize();
+    if (!day) u.uMoonDir.value.copy(this.lightOffset).normalize();
+  }
+
   private onKeyDown = (e: KeyboardEvent) => {
     if (e.code === 'KeyE' && !this.dialogOpen && !this.exhibitOpen && !this.transition) {
       this.interactions.interactNearest();
@@ -536,6 +626,8 @@ export class Engine {
 
     // Island-only world systems (frozen while inside interiors)
     if (this.activeKind === 'island') {
+      this.updateDayNight();
+
       // Keep the sky centred on the camera so it reads as infinitely far away.
       this.sky.position.copy(this.camera.position);
       this.skyMat.uniforms.uTime.value = this.time;
@@ -596,8 +688,15 @@ export class Engine {
         (w.material as THREE.MeshBasicMaterial).opacity = 0.26 + 0.2 * (0.5 + 0.5 * Math.sin(this.time * 0.8 + ph * 2.3));
       });
 
-      // Water shader time
+      // Water shader time + night tint
       (this.island.sea.material as THREE.ShaderMaterial).uniforms.uTime.value = this.time;
+      (this.island.sea.material as THREE.ShaderMaterial).uniforms.uNight.value = this.nightFactor;
+
+      // Unlit white accents dim to moonlit tones at night
+      const dim = 1 - this.nightFactor * 0.72;
+      this.island.foam.forEach((r) => (r.material as THREE.MeshBasicMaterial).color.setRGB(dim, dim, Math.min(1, dim * 1.1)));
+      this.island.waves.forEach((w) => (w.material as THREE.MeshBasicMaterial).color.setRGB(dim, dim, Math.min(1, dim * 1.1)));
+      this.petalMat.color.setScalar(dim);
 
       // Butterflies: lissajous wander around their flower bed + wing flap
       this.island.butterflies.forEach((b) => {
@@ -633,8 +732,8 @@ export class Engine {
       }
       this.petals.instanceMatrix.needsUpdate = true;
 
-      // Keep the shadow box centred on the villager
-      this.dirLight.position.set(this.villager.position.x + SUN_OFFSET.x, SUN_OFFSET.y, this.villager.position.z + SUN_OFFSET.z);
+      // Keep the shadow box centred on the villager (sun by day, moon by night)
+      this.dirLight.position.set(this.villager.position.x + this.lightOffset.x, this.lightOffset.y, this.villager.position.z + this.lightOffset.z);
       this.dirLight.target.position.copy(this.villager.position);
     }
 
