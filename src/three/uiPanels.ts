@@ -1,7 +1,10 @@
 import * as THREE from 'three';
 import type { Text } from 'troika-three-text';
-import { C, FONT_BOLD, FONT_HEAVY, makeLabel, makePanel, roundedRectShape, UiButton } from './uiKit';
+import { C, FONT_BOLD, FONT_HEAVY, makeLabel, makePanel, roundedRectShape, UiButton, envelopeIcon, githubCatIcon, pencilIcon } from './uiKit';
 import { profile, projects } from '../content';
+
+const _spineA = new THREE.Color();
+const _spineB = new THREE.Color();
 
 interface Hot {
   group: THREE.Group;
@@ -23,6 +26,21 @@ function makeStarShape(r: number): THREE.Shape {
   }
   s.closePath();
   return s;
+}
+
+/** Soft drop shadow — a dark rounded shape behind/below a panel. */
+function makeSoftShadow(w: number, h: number, r: number, opacity = 0.16): THREE.Mesh {
+  return new THREE.Mesh(
+    new THREE.ShapeGeometry(roundedRectShape(w, h, r), 8),
+    new THREE.MeshBasicMaterial({
+      color: 0x2a1f14,
+      transparent: true,
+      opacity,
+      toneMapped: false,
+      depthTest: false,
+      depthWrite: false,
+    }),
+  );
 }
 
 /** Route titles shown in the HUD pill. */
@@ -65,6 +83,9 @@ export class UiPanels {
 
   private typeTarget: { label: Text; full: string; count: number } | null = null;
 
+  private clock = 0;
+  private typeArrow: THREE.Mesh | null = null;
+
   private readonly PANEL_DIST = 6;
 
   onNavigate: ((to: string) => void) | null = null;
@@ -86,6 +107,9 @@ export class UiPanels {
 
   private buildHud() {
     this.hudGroup = new THREE.Group();
+    const shadow = makeSoftShadow(2.62, 0.5, 0.25, 0.12);
+    shadow.position.set(0.035, -0.045, -0.002);
+    this.hudGroup.add(shadow);
     const pill = makePanel(2.62, 0.5, 0.25, { bg: C.paper, border: C.line });
     this.hudGroup.add(pill);
 
@@ -93,7 +117,7 @@ export class UiPanels {
     leaf.position.set(-1.16, 0, 0.002);
     this.hudGroup.add(leaf);
 
-    this.hudTitle = makeLabel(profile.name, { size: 0.115, color: C.heading, font: FONT_HEAVY, anchorX: 'left' });
+    this.hudTitle = makeLabel(profile.name, { size: 0.115, color: C.heading, font: FONT_HEAVY, anchorX: 'left', letterSpacing: -0.002 });
     this.hudTitle.position.set(-0.98, 0.11, 0.002);
     this.hudGroup.add(this.hudTitle);
 
@@ -118,6 +142,9 @@ export class UiPanels {
 
   private buildClock() {
     this.clockGroup = new THREE.Group();
+    const shadow = makeSoftShadow(1.32, 0.5, 0.25, 0.12);
+    shadow.position.set(0.035, -0.045, -0.002);
+    this.clockGroup.add(shadow);
     const pill = makePanel(1.32, 0.5, 0.25, { bg: C.paper, border: C.line });
     this.clockGroup.add(pill);
 
@@ -183,6 +210,9 @@ export class UiPanels {
 
   private dialogChrome(W: number, H: number, title: string): THREE.Group {
     const g = new THREE.Group();
+    const shadow = makeSoftShadow(W, H, 0.3, 0.16);
+    shadow.position.set(0.05, -0.08, -0.002);
+    g.add(shadow);
     const bubble = makePanel(W, H, 0.3, { bg: C.paper, border: C.line });
     g.add(bubble);
 
@@ -216,11 +246,31 @@ export class UiPanels {
     close.position.set(W / 2 - 0.22, H / 2 + 0.02, 0.002);
     g.add(close);
     this.dialogHots.push({ group: close, mesh: close.hitMesh, onClick: () => this.onNavigate?.('/'), hoverT: 0 });
+
+    // Faint paper-pattern accents (AC dialogs have subtle detailing)
+    const sparkle = (x: number, y: number, s: number, rot: number) => {
+      const d = new THREE.Shape();
+      d.moveTo(0, s);
+      d.lineTo(s * 0.7, 0);
+      d.lineTo(0, -s);
+      d.lineTo(-s * 0.7, 0);
+      d.closePath();
+      const m = new THREE.Mesh(
+        new THREE.ShapeGeometry(d, 1),
+        new THREE.MeshBasicMaterial({ color: C.line, transparent: true, opacity: 0.13, toneMapped: false, depthTest: false, depthWrite: false }),
+      );
+      m.position.set(x, y, 0.0015);
+      m.rotation.z = rot;
+      g.add(m);
+    };
+    sparkle(W / 2 - 0.55, -H / 2 + 0.5, 0.05, 0.3);
+    sparkle(W / 2 - 0.33, -H / 2 + 0.78, 0.04, -0.2);
+    sparkle(W / 2 - 0.72, -H / 2 + 0.34, 0.045, 0.6);
     return g;
   }
 
   private buildAbout(W: number): [THREE.Group, number] {
-    const H = 1.98;
+    const H = 2.04;
     const g = this.dialogChrome(W, H, profile.name);
 
     const typeLabel = makeLabel('', {
@@ -233,16 +283,16 @@ export class UiPanels {
     const role = makeLabel(`${profile.role} · this island + UI are 100% WebGL`, {
       size: 0.075, color: C.teal, font: FONT_BOLD,
     });
-    role.position.set(0, H / 2 - 1.18, 0.002);
+    role.position.set(0, H / 2 - 1.2, 0.002);
     g.add(role);
 
     const blog = new UiButton({
-      w: 1.2, h: 0.38, bg: C.green, edge: C.greenEdge, label: 'Blog', size: 0.105,
+      w: 1.2, h: 0.38, bg: C.green, edge: C.greenEdge, label: 'Blog', size: 0.105, icon: pencilIcon(),
       onClick: () => window.open(profile.blog.url, '_blank', 'noopener'),
     });
     blog.position.set(-0.68, -H / 2 + 0.38, 0.002);
     const gh = new UiButton({
-      w: 1.2, h: 0.38, bg: C.blue, edge: C.blueEdge, label: 'GitHub', size: 0.105,
+      w: 1.2, h: 0.38, bg: C.blue, edge: C.blueEdge, label: 'GitHub', size: 0.105, icon: githubCatIcon(),
       onClick: () => window.open(profile.github.url, '_blank', 'noopener'),
     });
     gh.position.set(0.68, -H / 2 + 0.38, 0.002);
@@ -251,6 +301,23 @@ export class UiPanels {
       { group: blog, mesh: blog.hitMesh, onClick: () => window.open(profile.blog.url, '_blank', 'noopener'), hoverT: 0 },
       { group: gh, mesh: gh.hitMesh, onClick: () => window.open(profile.github.url, '_blank', 'noopener'), hoverT: 0 },
     );
+
+    // "Continue" caret, shown once the typewriter finishes — bobs each frame.
+    const arrowShape = new THREE.Shape();
+    arrowShape.moveTo(-0.05, 0.04);
+    arrowShape.lineTo(0.05, 0.04);
+    arrowShape.lineTo(0, -0.04);
+    arrowShape.closePath();
+    const arrow = new THREE.Mesh(
+      new THREE.ShapeGeometry(arrowShape),
+      new THREE.MeshBasicMaterial({ color: C.teal, toneMapped: false, depthTest: false, depthWrite: false, transparent: true }),
+    );
+    arrow.position.set(W / 2 - 0.62, 0.06, 0.003);
+    arrow.userData.baseY = 0.06;
+    arrow.visible = false;
+    g.add(arrow);
+    this.typeArrow = arrow;
+
     return [g, H];
   }
 
@@ -280,6 +347,7 @@ export class UiPanels {
       );
       spine.position.set(-cardW / 2 + 0.12, 0, 0.002);
       card.add(spine);
+      card.userData.spine = spine;
 
       const title = makeLabel(p.title, { size: 0.1, color: C.heading, font: FONT_BOLD, anchorX: 'left' });
       title.position.set(-cardW / 2 + 0.28, cardH / 2 - 0.17, 0.002);
@@ -338,7 +406,7 @@ export class UiPanels {
   }
 
   private buildContact(W: number): [THREE.Group, number] {
-    const H = 1.9;
+    const H = 2.0;
     const g = this.dialogChrome(W, H, 'Notice Board');
 
     const line = makeLabel('Want to chat about a project, a job, or island life? Send word my way!', {
@@ -347,18 +415,18 @@ export class UiPanels {
     line.position.set(0, H / 2 - 0.5, 0.002);
     g.add(line);
 
-    const mk = (label: string, x: number, bg: number, edge: number, url: string) => {
+    const mk = (label: string, x: number, bg: number, edge: number, url: string, icon: THREE.Group) => {
       const b = new UiButton({
-        w: 1.3, h: 0.4, bg, edge, label, size: 0.095,
+        w: 1.3, h: 0.4, bg, edge, label, size: 0.095, icon,
         onClick: () => window.open(url, '_blank', 'noopener'),
       });
-      b.position.set(x, -H / 2 + 0.62, 0.002);
+      b.position.set(x, -H / 2 + 0.64, 0.002);
       g.add(b);
       this.dialogHots.push({ group: b, mesh: b.hitMesh, onClick: () => window.open(url, '_blank', 'noopener'), hoverT: 0 });
     };
-    mk(profile.email.label, -1.55, C.orange, C.orangeEdge, profile.email.url);
-    mk('GitHub', 0, C.blue, C.blueEdge, profile.github.url);
-    mk(profile.blog.label, 1.55, C.green, C.greenEdge, profile.blog.url);
+    mk(profile.email.label, -1.55, C.orange, C.orangeEdge, profile.email.url, envelopeIcon());
+    mk('GitHub', 0, C.blue, C.blueEdge, profile.github.url, githubCatIcon());
+    mk(profile.blog.label, 1.55, C.green, C.greenEdge, profile.blog.url, pencilIcon());
 
     const note = makeLabel('Carrier pigeon also accepted', { size: 0.068, color: C.body });
     note.position.set(0, -H / 2 + 0.24, 0.002);
@@ -382,6 +450,7 @@ export class UiPanels {
     this.dialogGroup = null;
     this.dialogHots = [];
     this.typeTarget = null;
+    this.typeArrow = null;
     this.hots = this.hots.filter((h) => !this.dialogHots.includes(h));
   }
 
@@ -431,6 +500,8 @@ export class UiPanels {
   // ── Frame update + layout ────────────────────────────────────────────────
 
   update(dt: number) {
+    this.clock += dt;
+
     // Clock tick (cheap interval via accumulated time)
     this.clockTimer += dt;
     if (this.clockTimer > 15) {
@@ -454,6 +525,13 @@ export class UiPanels {
       h.hoverT += (target - h.hoverT) * Math.min(1, dt * 14);
       const k = 1 + h.hoverT * 0.06;
       h.group.scale.set(k, k, 1);
+      // Project cards: lift the green spine toward teal as the hover spring grows
+      const spine = h.group.userData.spine as THREE.Mesh | undefined;
+      if (spine) {
+        (spine.material as THREE.MeshBasicMaterial)
+          .color.copy(_spineA.setHex(C.green))
+          .lerp(_spineB.setHex(C.teal), h.hoverT);
+      }
     }
 
     // Typewriter
@@ -462,6 +540,13 @@ export class UiPanels {
       tt.count = Math.min(tt.full.length, tt.count + dt * 34);
       tt.label.text = tt.full.slice(0, Math.floor(tt.count));
       tt.label.sync();
+    }
+
+    // "Continue" caret — reveal once typing is done, then gently bob
+    if (this.typeArrow) {
+      const done = !tt || tt.count >= tt.full.length;
+      this.typeArrow.visible = done;
+      if (done) this.typeArrow.position.y = (this.typeArrow.userData.baseY as number) + Math.sin(this.clock * 3) * 0.025;
     }
   }
 

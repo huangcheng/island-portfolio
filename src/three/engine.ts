@@ -17,8 +17,11 @@ const SUN_GLOW = new THREE.Color(0xfff1c9); // warm radial highlight
 // glow matches the shadow-casting light.
 const SUN_OFFSET = new THREE.Vector3(13, 15, 9);
 const SUN_DIR = SUN_OFFSET.clone().normalize();
-// Fog tuned to the horizon so the island edge melts into the sky.
-const FOG_COLOR = 0xc6e3f2;
+// Fog tuned to a soft warm-neutral haze so the island edge melts into the
+// sky. Leaning slightly off-pure-cyan bridges the cream horizon and the blue
+// sea, killing the hard seam where fogged water meets the sky dome.
+const FOG_COLOR = 0xdfe8e6;
+const HAZE_COLOR = new THREE.Color(FOG_COLOR);
 
 // ── Procedural sky shader ────────────────────────────────────────────────────
 // Big inverted sphere centred on the camera. A three-stop vertical gradient
@@ -40,6 +43,7 @@ const SKY_FRAG = /* glsl */ `
   uniform vec3 uZenith;
   uniform vec3 uSunDir;
   uniform vec3 uSunColor;
+  uniform vec3 uHaze;
   uniform float uTime;
   varying vec3 vDir;
 
@@ -57,6 +61,12 @@ const SKY_FRAG = /* glsl */ `
     // Just below the horizon, settle on a slightly dimmer cream so the seam
     // against the fogged sea reads as warm haze rather than a hard line.
     col = mix(col, uHorizon * 0.94, smoothstep(0.0, -0.18, y));
+
+    // Soft haze band straddling the visible horizon: pulls the lower sky
+    // toward the same tone the distant sea fogs out to, so the silhouette
+    // edge reads as atmosphere instead of a hard sky/sea seam.
+    float haze = (1.0 - smoothstep(-0.04, 0.14, y)) * 0.85;
+    col = mix(col, uHaze, haze);
 
     // Warm sun glow — layered falloffs, gently breathing.
     float d = max(dot(dir, normalize(uSunDir)), 0.0);
@@ -128,6 +138,8 @@ export class Engine {
   private interactions: Interactions;
   private ui: UiPanels;
   private island;
+  /** Cached PointLight co-located with each flame, for flicker modulation. */
+  private flameLights: ({ light: THREE.PointLight; base: number } | null)[] = [];
   private dirLight: THREE.DirectionalLight;
 
   // Atmosphere
@@ -156,7 +168,7 @@ export class Engine {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.toneMapping = THREE.NeutralToneMapping;
-    this.renderer.toneMappingExposure = 1.08;
+    this.renderer.toneMappingExposure = 1.12;
 
     // The sky dome fills the frame, so no flat background colour is needed.
     this.scene.background = null;
@@ -173,6 +185,7 @@ export class Engine {
         uZenith: { value: SKY_ZENITH },
         uSunDir: { value: SUN_DIR },
         uSunColor: { value: SUN_GLOW },
+        uHaze: { value: HAZE_COLOR },
         uTime: { value: 0 },
       },
       vertexShader: SKY_VERT,
@@ -190,7 +203,7 @@ export class Engine {
 
     // ── Lighting rig: warm afternoon on a pastel island ──────────────────────
     // Pastel sky/ground bounce — softer than before for a creamy fill.
-    const hemi = new THREE.HemisphereLight(0xbfe3ff, 0x7ab84a, 0.85);
+    const hemi = new THREE.HemisphereLight(0xbfe3ff, 0x7ab84a, 0.92);
 
     // Warm key light from a low-ish afternoon angle; shadow box follows the
     // villager. normalBias lifts samples along the surface normal to kill
@@ -218,6 +231,14 @@ export class Engine {
     // ── World ────────────────────────────────────────────────────────────────
     this.island = buildIsland();
     this.scene.add(this.island.group);
+
+    // Cache each flame's co-located PointLight (sibling in its parent group)
+    // so the flicker loop can modulate it without re-traversing per frame.
+    this.flameLights = this.island.flames.map((f) => {
+      const siblings = f.parent ? f.parent.children : [];
+      const light = siblings.find((c) => c instanceof THREE.PointLight);
+      return light ? { light, base: light.intensity } : null;
+    });
 
     this.villager.position.set(0, 0, 3.2);
     this.scene.add(this.villager.group);
@@ -281,6 +302,9 @@ export class Engine {
       this._v3.set(data.bx, y, data.bz);
       this._euler.set(data.tumble, data.phase, 0, 'XYZ');
       this._q.setFromEuler(this._euler);
+      // Two size groups: smaller blossom petals vs larger leaf-ish ones.
+      const sc = i % 2 === 0 ? 1.0 : 1.35;
+      this._scale.set(sc, sc, sc);
       this._m4.compose(this._v3, this._q, this._scale);
       this.petals.setMatrixAt(i, this._m4);
     }
@@ -351,6 +375,31 @@ export class Engine {
       u.angle += u.speed * dt;
       c.position.set(Math.cos(u.angle) * u.radius, u.y, Math.sin(u.angle) * u.radius);
     }
+
+    // Seagulls orbit the island and flap (authored by a parallel agent; guard
+    // for when island.gulls is not yet present).
+    for (const g of ((this.island as any).gulls as THREE.Group[] | undefined) ?? []) {
+      const u = g.userData as {
+        angle: number;
+        radius: number;
+        speed: number;
+        y: number;
+        wingL?: THREE.Group;
+        wingR?: THREE.Group;
+        phase?: number;
+      };
+      u.angle += u.speed * dt;
+      const ph = u.phase ?? u.angle;
+      g.position.set(
+        Math.cos(u.angle) * u.radius,
+        u.y + Math.sin(this.time * 1.3 + ph) * 0.3,
+        Math.sin(u.angle) * u.radius,
+      );
+      g.rotation.y = -u.angle;
+      const flap = Math.sin(this.time * 6 + ph) * 0.5;
+      if (u.wingL) u.wingL.rotation.z = flap;
+      if (u.wingR) u.wingR.rotation.z = -flap;
+    }
     // Sea foam breathing
     this.island.foam.forEach((ring, i) => {
       const s = 1 + Math.sin(this.time * 0.7 + i * 1.7) * 0.022;
@@ -363,6 +412,13 @@ export class Engine {
       const s = 1 + Math.sin(this.time * 11 + i * 1.9) * 0.16 + Math.sin(this.time * 23 + i) * 0.06;
       f.scale.set(1 / Math.sqrt(s), s, 1 / Math.sqrt(s)); // volume-ish preserving lick
       f.rotation.y += dt * (2 + i * 0.3);
+      // Flicker the co-located PointLight at the same phase (±20%), so the
+      // warm glow breathes with the flame geometry.
+      const fl = this.flameLights[i];
+      if (fl) {
+        const flick = Math.sin(this.time * 11 + i * 1.9) * 0.14 + Math.sin(this.time * 23 + i) * 0.06;
+        fl.light.intensity = fl.base * (1 + flick);
+      }
     });
 
     // Wave crests bob + shimmer on the water
@@ -403,6 +459,8 @@ export class Engine {
       this._v3.set(x, y, z);
       this._euler.set(d.tumble + t * d.tumbleSpd, d.phase + t * d.tumbleSpd * 0.6, Math.sin(t * 0.8 + d.phase) * 0.5, 'XYZ');
       this._q.setFromEuler(this._euler);
+      const sc = i % 2 === 0 ? 1.0 : 1.35;
+      this._scale.set(sc, sc, sc);
       this._m4.compose(this._v3, this._q, this._scale);
       this.petals.setMatrixAt(i, this._m4);
     }

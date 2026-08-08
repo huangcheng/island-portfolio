@@ -358,6 +358,25 @@ function signCanvas(text: string): HTMLCanvasElement {
   return c;
 }
 
+/** Engraved stone inscription plaque texture. */
+function inscriptionCanvas(text: string): HTMLCanvasElement {
+  const W = 512;
+  const H = 128;
+  const c = cv(W, H);
+  const ctx = c.getContext('2d')!;
+  ctx.fillStyle = hex(COL.stoneDark);
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = hex(COL.stone);
+  ctx.lineWidth = 4;
+  ctx.strokeRect(10, 10, W - 20, H - 20);
+  ctx.fillStyle = hex(COL.creamWall);
+  ctx.font = '800 72px "Baloo 2", "Georgia", serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, W / 2, H / 2 + 4);
+  return c;
+}
+
 // ============================================================================
 // HOUSE  ("About" building)
 // ============================================================================
@@ -411,9 +430,9 @@ function makeHouse(): THREE.Group {
   roofNx.position.set(-halfSpan / 2, wallTop + peakH / 2, 0);
   roofNx.rotation.z = pitch;
 
-  // Ridge cap
+  // Ridge cap (rounded box along the apex)
   const ridge = shadowed(
-    new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.18, D + overZ * 2 + 0.12), M.redShade),
+    new THREE.Mesh(rbox(0.22, 0.16, D + overZ * 2 + 0.12, 0.06), M.redShade),
     true,
     false,
   );
@@ -528,6 +547,46 @@ function makeHouse(): THREE.Group {
   rail.position.set(2.05, 0.42, 0.95);
   fence.add(rail);
 
+  // --- Door wreath (green torus ring + 3 red berries) ---
+  const wreathRing = shadowed(
+    new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.028, 6, 16), M.leaf),
+    true,
+    false,
+  );
+  wreathRing.position.set(0, baseY + doorH - 0.17, D / 2 + 0.03);
+  const berryGeo = new THREE.SphereGeometry(0.026, 8, 6);
+  const berryMat = std(COL.red, 0.6);
+  const wreathBerries: THREE.Mesh[] = [];
+  for (let i = 0; i < 3; i++) {
+    const a = -Math.PI / 2 + (i - 1) * 0.55;
+    const b = shadowed(new THREE.Mesh(berryGeo, berryMat), true, false);
+    b.position.set(Math.cos(a) * 0.12, baseY + doorH - 0.17 + Math.sin(a) * 0.12, D / 2 + 0.05);
+    wreathBerries.push(b);
+  }
+
+  // --- Window shutters (white, two boards each) ---
+  const shutterBoardGeo = rbox(0.14, 0.36, 0.08, 0.03);
+  const makeShutter = (x: number): THREE.Group => {
+    const sg = new THREE.Group();
+    const top = shadowed(new THREE.Mesh(shutterBoardGeo, M.pureWhite), true, false);
+    top.position.y = 0.22;
+    const bot = shadowed(new THREE.Mesh(shutterBoardGeo, M.pureWhite), true, false);
+    bot.position.y = -0.22;
+    sg.add(top, bot);
+    sg.position.set(x, winY, D / 2 - 0.04);
+    return sg;
+  };
+  const shutters: THREE.Group[] = [
+    makeShutter(-1.34 - 0.53),
+    makeShutter(-1.34 + 0.53),
+    makeShutter(1.34 - 0.53),
+    makeShutter(1.34 + 0.53),
+  ];
+
+  // --- Welcome mat at doorstep ---
+  const mat = shadowed(new THREE.Mesh(rbox(0.9, 0.04, 0.45, 0.02), M.redShade), true, true);
+  mat.position.set(0, 0.02, D / 2 + 0.6);
+
   g.add(
     found,
     walls,
@@ -547,6 +606,10 @@ function makeHouse(): THREE.Group {
     chimney,
     chimCap,
     fence,
+    wreathRing,
+    ...wreathBerries,
+    ...shutters,
+    mat,
   );
   return g;
 }
@@ -757,6 +820,64 @@ function makeMuseum(): THREE.Group {
   );
   flag.position.set(0.03, wallTop + 0.28 + roofH + 0.42, 0.01);
 
+  // --- Hip-roof ridge caps along the 4 edges ---
+  const hipY0 = wallTop + 0.28;
+  const hipLen = Math.sqrt(3.2 * 3.2 + roofH * roofH + 2.1 * 2.1);
+  const hipCapGeo = rbox(0.14, hipLen * 0.94, 0.12, 0.04);
+  const upVec = new THREE.Vector3(0, 1, 0);
+  const hipCorners: Array<[number, number]> = [
+    [3.2, 2.1],
+    [3.2, -2.1],
+    [-3.2, -2.1],
+    [-3.2, 2.1],
+  ];
+  const hipCaps: THREE.Mesh[] = [];
+  for (const [hx, hz] of hipCorners) {
+    const dir = new THREE.Vector3(-hx, roofH, -hz).normalize();
+    const hc = shadowed(new THREE.Mesh(hipCapGeo, M.blueShade), true, false);
+    hc.position.set(hx / 2, hipY0 + roofH / 2, hz / 2);
+    hc.quaternion.setFromUnitVectors(upVec, dir);
+    hipCaps.push(hc);
+  }
+
+  // --- Entablature inscription plaque ---
+  const insTex = makeTex(inscriptionCanvas('MUSEUM'));
+  const insFront = new THREE.MeshStandardMaterial({ map: insTex, roughness: 0.9, metalness: 0 });
+  const insSide = M.stoneDark;
+  const inscription = shadowed(
+    new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.2, 0.06), [
+      insSide,
+      insSide,
+      insSide,
+      insSide,
+      insFront,
+      insSide,
+    ]),
+    true,
+    false,
+  );
+  inscription.position.set(0, wallTop + 0.13, (D + 0.4) / 2 + 0.01);
+
+  // --- Flanking bushes in stone planters ---
+  const planterPotGeo = rbox(0.5, 0.3, 0.5, 0.06);
+  const foliageGeo = new THREE.SphereGeometry(0.22, 12, 10);
+  const foliage2Geo = new THREE.SphereGeometry(0.15, 10, 8);
+  const makePlanter = (x: number): THREE.Group => {
+    const pg = new THREE.Group();
+    const pot = shadowed(new THREE.Mesh(planterPotGeo, M.stone), true, true);
+    pot.position.y = 0.15;
+    const f1 = shadowed(new THREE.Mesh(foliageGeo, M.leaf), true, false);
+    f1.position.y = 0.42;
+    f1.scale.set(1, 0.85, 1);
+    const f2 = shadowed(new THREE.Mesh(foliage2Geo, M.leaf), true, false);
+    f2.position.set(0.13, 0.5, 0.06);
+    pg.add(pot, f1, f2);
+    pg.position.set(x, 0, D / 2 + 0.55);
+    return pg;
+  };
+  const planterL = makePlanter(-1.5);
+  const planterR = makePlanter(1.5);
+
   g.add(
     found,
     walls,
@@ -775,6 +896,10 @@ function makeMuseum(): THREE.Group {
     swR,
     pole,
     flag,
+    ...hipCaps,
+    inscription,
+    planterL,
+    planterR,
   );
   return g;
 }
@@ -806,21 +931,25 @@ function makeNoticeBoard(): THREE.Group {
   );
   board.position.set(0, 1.42, 0.07);
 
-  // tiny hip roof overhang over the board
+  // tiny hip roof overhang over the board (shingled)
   const roofGeo = new THREE.ConeGeometry(1.55, 0.5, 4);
-  const roof = shadowed(new THREE.Mesh(roofGeo, M.woodDark), true, true);
+  const boardRoofTex = makeTex(shingleCanvas(COL.woodDark, 0x9c6c3c, 0x5a3a1f), 3, 2, true);
+  const boardRoofMat = new THREE.MeshStandardMaterial({ map: boardRoofTex, roughness: 0.9, metalness: 0 });
+  const roof = shadowed(new THREE.Mesh(roofGeo, boardRoofMat), true, true);
   roof.rotation.y = Math.PI / 4;
   roof.scale.z = 0.74;
   roof.position.y = 2.28;
 
   // pinned notes
-  const pinColors = [COL.red, COL.blue, COL.yellow, 0xc58cff];
-  const doodles: Array<'mail' | 'star' | 'lines' | null> = ['mail', 'star', 'lines', null];
+  const pinColors = [COL.red, COL.blue, COL.yellow, 0xc58cff, COL.pink, 0x4fcf6f];
+  const doodles: Array<'mail' | 'star' | 'lines' | null> = ['mail', 'star', 'lines', null, 'star', 'lines'];
   const notes: Array<[number, number, number]> = [
     [-0.5, 1.5, 0.08],
     [-0.02, 1.32, -0.1],
     [0.5, 1.5, 0.12],
     [0.28, 1.62, -0.07],
+    [-0.32, 1.7, 0.05],
+    [0.64, 1.3, -0.09],
   ];
   notes.forEach(([nx, ny, rz], i) => {
     const tex = makeTex(paperCanvas(doodles[i]));
@@ -842,7 +971,18 @@ function makeNoticeBoard(): THREE.Group {
     g.add(paper, pin);
   });
 
-  g.add(pL, pR, frame, board, roof);
+  // --- Back panel frame (so it reads finished from behind) ---
+  const backZ = -0.1;
+  const bkTop = shadowed(new THREE.Mesh(rbox(2.12, 0.1, 0.05, 0.03), M.woodDark), true, false);
+  bkTop.position.set(0, 1.42 + 0.61, backZ);
+  const bkBot = shadowed(new THREE.Mesh(rbox(2.12, 0.1, 0.05, 0.03), M.woodDark), true, false);
+  bkBot.position.set(0, 1.42 - 0.61, backZ);
+  const bkL = shadowed(new THREE.Mesh(rbox(0.1, 1.12, 0.05, 0.03), M.woodDark), true, false);
+  bkL.position.set(-1.01, 1.42, backZ);
+  const bkR = shadowed(new THREE.Mesh(rbox(0.1, 1.12, 0.05, 0.03), M.woodDark), true, false);
+  bkR.position.set(1.01, 1.42, backZ);
+
+  g.add(pL, pR, frame, board, roof, bkTop, bkBot, bkL, bkR);
   return g;
 }
 

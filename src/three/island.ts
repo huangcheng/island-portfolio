@@ -34,6 +34,8 @@ export interface IslandBuild {
   sea: THREE.Mesh;
   /** Butterflies fluttering over flower beds — the engine flies them. */
   butterflies: Butterfly[];
+  /** Distant gulls circling over the sea — the engine orbits + flaps them. */
+  gulls: THREE.Group[];
 }
 
 // ── Palette ───────────────────────────────────────────────────────────────
@@ -348,7 +350,7 @@ function makeBush(x: number, z: number, rng: () => number): { bush: THREE.Group;
   return { bush: g, collider: { x, z, r: 0.4 } };
 }
 
-// ── Flower: stem + 5 radial petals + yellow centre ─────────────────────────
+// ── Flower: stem + 5-6 radial petals tilted outward + raised dome centre ───
 function makeFlower(x: number, z: number, color: number, rng: () => number): THREE.Group {
   const g = new THREE.Group();
   g.position.set(x, 0, z);
@@ -359,28 +361,40 @@ function makeFlower(x: number, z: number, color: number, rng: () => number): THR
   stem.position.y = h / 2;
   g.add(stem);
 
-  const cy = h + 0.06;
+  const cy = h + 0.05;
   const pmat = std(color, 0.5);
-  const n = 5;
+  const n = rng() > 0.5 ? 6 : 5;
+  // Orient each petal so its long axis (local +Z) points radially outward,
+  // then tilt the outer tip gently down — an open, fanned AC blossom.
+  const localZ = new THREE.Vector3(0, 0, 1);
+  const tiltQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), 0.42);
+  const radial = new THREE.Vector3();
+  const ringR = 0.085;
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2;
+    radial.set(Math.cos(a), 0, Math.sin(a));
     const p = new THREE.Mesh(G_SPHERE_LO, pmat);
-    p.position.set(Math.cos(a) * 0.1, cy + 0.02, Math.sin(a) * 0.1);
-    p.scale.set(0.085, 0.045, 0.14);
-    p.rotation.z = -Math.cos(a) * 0.35;
-    p.rotation.x = Math.sin(a) * 0.35;
+    p.scale.set(0.072, 0.034, 0.12); // rounded petal, elongated radially (local +Z)
+    p.position.set(radial.x * ringR, cy, radial.z * ringR);
+    p.quaternion.setFromUnitVectors(localZ, radial).multiply(tiltQ);
     g.add(p);
   }
+  // raised dome centre (yellow) sitting clearly above the petal plane
   const center = new THREE.Mesh(G_SPHERE_LO, std(0xffd94d, 0.4));
-  center.position.y = cy + 0.04;
-  center.scale.setScalar(0.085);
+  center.position.y = cy + 0.05;
+  center.scale.set(0.072, 0.05, 0.072);
   g.add(center);
-  // a little leaf on the stem
-  const leaf = new THREE.Mesh(G_SPHERE_LO, std(0x4a9d3a));
-  leaf.position.set(0.06, h * 0.5, 0);
-  leaf.scale.set(0.09, 0.03, 0.05);
-  leaf.rotation.z = -0.5;
-  g.add(leaf);
+  // 1-2 small leaf blades on the stem
+  const leafMat = std(0x4a9d3a);
+  const leafN = rng() > 0.5 ? 2 : 1;
+  for (let i = 0; i < leafN; i++) {
+    const side = i === 0 ? 1 : -1;
+    const leaf = new THREE.Mesh(G_SPHERE_LO, leafMat);
+    leaf.position.set(side * 0.07, h * (0.45 + i * 0.25), 0);
+    leaf.scale.set(0.1, 0.026, 0.045);
+    leaf.rotation.z = side * -0.6;
+    g.add(leaf);
+  }
   return g;
 }
 
@@ -411,6 +425,11 @@ function makeTulip(x: number, z: number, color: number, rng: () => number): THRE
   cup.scale.setScalar(cs);
   cup.position.y = h;
   g.add(cup);
+  // rounded torus rim softens the cup mouth (AC tulips flare slightly)
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.09 * cs, 0.017, 8, 20), std(color, 0.85));
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = h + 0.31 * cs;
+  g.add(rim);
 
   const leafMat = std(0x4a9d3a);
   for (let i = 0; i < 2; i++) {
@@ -496,13 +515,23 @@ function makeClover(x: number, z: number, rng: () => number): THREE.Group {
   return g;
 }
 
-function makeGrassTuft(x: number, z: number, rng: () => number): THREE.Mesh {
-  const m = new THREE.Mesh(G_BLADE, std(rng() > 0.5 ? GRASS_DARK : 0x6cc24a));
-  m.position.set(x, 0.16, z);
-  m.rotation.y = rng() * Math.PI * 2;
-  m.rotation.z = (rng() - 0.5) * 0.3;
-  m.scale.set(0.6 + rng() * 0.4, 0.7 + rng() * 0.5, 0.6 + rng() * 0.4);
-  return m;
+function makeGrassTuft(x: number, z: number, rng: () => number): THREE.Group {
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  g.rotation.y = rng() * Math.PI * 2;
+  const mat = std(rng() > 0.5 ? GRASS_DARK : 0x6cc24a);
+  const base = 0.6 + rng() * 0.4;
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2;
+    const b = new THREE.Mesh(G_BLADE, mat);
+    b.position.set(Math.cos(a) * 0.03, 0.16, Math.sin(a) * 0.03);
+    b.rotation.y = a;
+    b.rotation.z = -0.35; // splay the blade outward into a 3-blade fan
+    const s = base * (0.85 + rng() * 0.3);
+    b.scale.set(s * 0.8, s, s * 0.8);
+    g.add(b);
+  }
+  return g;
 }
 
 // ── Beach props: shells, starfish, driftwood ───────────────────────────────
@@ -615,13 +644,47 @@ function makeCloud(seed: number): THREE.Group {
   return g;
 }
 
-// ── Butterfly: flapping wings, wanders a flower bed (engine-animated) ───────
+// ── Butterfly: shaped bezier wings + white spots, wanders a flower bed ─────
 export interface Butterfly {
   group: THREE.Group;
-  wingL: THREE.Mesh;
-  wingR: THREE.Mesh;
+  wingL: THREE.Group;
+  wingR: THREE.Group;
   anchor: THREE.Vector3;
   phase: number;
+}
+
+/** One wing: big forewing lobe + smaller hindwing lobe, pivot at the body. */
+function makeWingGroup(color: number, mirror: boolean): THREE.Group {
+  const grp = new THREE.Group();
+  const s = new THREE.Shape();
+  s.moveTo(0, 0);
+  s.bezierCurveTo(0.01, 0.09, 0.1, 0.15, 0.16, 0.115); // forewing top
+  s.bezierCurveTo(0.21, 0.09, 0.21, 0.03, 0.135, 0.005); // forewing tip
+  s.bezierCurveTo(0.185, -0.03, 0.16, -0.1, 0.095, -0.105); // hindwing lobe
+  s.bezierCurveTo(0.05, -0.11, 0.008, -0.05, 0, 0); // back to body
+  const geo = new THREE.ShapeGeometry(s, 10);
+  geo.rotateX(-Math.PI / 2); // lie flat (XZ plane)
+  if (mirror) geo.scale(-1, 1, 1);
+  const wing = new THREE.Mesh(
+    geo,
+    new THREE.MeshStandardMaterial({ color, roughness: 0.7, side: THREE.DoubleSide }),
+  );
+  grp.add(wing);
+
+  // White spots riding the wing
+  const spotMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6, side: THREE.DoubleSide });
+  const spotGeo = new THREE.CircleGeometry(0.016, 8);
+  spotGeo.rotateX(-Math.PI / 2);
+  for (const [px, pz, ps] of [
+    [0.12, -0.055, 1],
+    [0.1, 0.06, 0.8],
+  ] as const) {
+    const spot = new THREE.Mesh(spotGeo, spotMat);
+    spot.position.set(mirror ? -px : px, 0.002, -pz);
+    spot.scale.setScalar(ps);
+    grp.add(spot);
+  }
+  return grp;
 }
 
 function makeButterfly(color: number, anchor: THREE.Vector3, phase: number): Butterfly {
@@ -629,17 +692,50 @@ function makeButterfly(color: number, anchor: THREE.Vector3, phase: number): But
   const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.018, 0.09, 4, 6), std(0x3a3230, 0.7));
   body.rotation.x = Math.PI / 2;
   g.add(body);
-  const wingGeo = new THREE.PlaneGeometry(0.17, 0.13);
-  wingGeo.rotateX(-Math.PI / 2);
-  const wingMat = new THREE.MeshStandardMaterial({ color, roughness: 0.7, side: THREE.DoubleSide });
-  const wingLGeo = wingGeo.clone();
-  wingLGeo.translate(-0.085, 0, 0); // pivot at the body
-  const wingRGeo = wingGeo.clone();
-  wingRGeo.translate(0.085, 0, 0);
-  const wingL = new THREE.Mesh(wingLGeo, wingMat);
-  const wingR = new THREE.Mesh(wingRGeo, wingMat);
+  // Little antennae
+  const antGeo = new THREE.CylinderGeometry(0.0035, 0.0035, 0.07, 4);
+  for (const sx of [-0.02, 0.02]) {
+    const ant = new THREE.Mesh(antGeo, std(0x3a3230, 0.7));
+    ant.position.set(sx, 0.03, 0.055);
+    ant.rotation.set(0.5, 0, sx < 0 ? 0.35 : -0.35);
+    g.add(ant);
+  }
+  const wingL = makeWingGroup(color, true);
+  const wingR = makeWingGroup(color, false);
   g.add(wingL, wingR);
   return { group: g, wingL, wingR, anchor, phase };
+}
+
+// ── Seagull: tiny dark silhouette + two arc wings (engine orbits + flaps) ───
+function makeGull(seed: number): THREE.Group {
+  const g = new THREE.Group();
+  const rng = mulberry32(seed * 131 + 7);
+  const bodyMat = std(0x4a4a52, 0.95);
+  const body = new THREE.Mesh(G_SPHERE_LO, bodyMat);
+  body.scale.set(0.05, 0.06, 0.14); // tiny body, long along Z (forward)
+  g.add(body);
+  const head = new THREE.Mesh(G_SPHERE_LO, bodyMat);
+  head.scale.setScalar(0.04);
+  head.position.set(0, 0.012, 0.1);
+  g.add(head);
+
+  // Half-torus arch per wing: shift so the arch base anchors at the body and
+  // the arc spreads sideways (+X / -X), arcing up in Y → the classic gull "M".
+  const wingGeo = new THREE.TorusGeometry(0.15, 0.013, 5, 16, Math.PI);
+  const wingMat = std(0x5a5a62, 0.95);
+  const makeWing = (side: number): THREE.Group => {
+    const wg = new THREE.Group();
+    const w = new THREE.Mesh(wingGeo, wingMat);
+    w.position.x = side * 0.15;
+    w.scale.set(1, 0.45 + rng() * 0.1, 1); // shallow arc
+    wg.add(w);
+    return wg;
+  };
+  const wingL = makeWing(-1);
+  const wingR = makeWing(1);
+  g.add(wingL, wingR);
+  g.userData = { wingL, wingR, angle: 0, radius: 0, speed: 0, y: 0 };
+  return g;
 }
 
 /** Dirt cliff texture: horizontal wavy strata + speckle, like AC rock walls. */
@@ -1190,6 +1286,27 @@ export function buildIsland(): IslandBuild {
   walkSurface.rotation.x = -Math.PI / 2;
   walkSurface.position.y = 0.02;
 
+  // ── Subtle darker-green tonal patches for grass variation ──────────────────
+  // Large, very transparent GRASS_DARK circles laid just above the grass,
+  // placed away from the plaza/paths so they read as gentle meadow variation.
+  const patchMat = new THREE.MeshBasicMaterial({
+    color: GRASS_DARK,
+    transparent: true,
+    opacity: 0.25,
+    depthWrite: false,
+  });
+  const grassPatches: [number, number, number][] = [
+    [-7.5, 6.5, 3.2],
+    [9.0, 4.5, 2.6],
+    [4.5, -8.5, 3.6],
+  ];
+  for (const [px, pz, pr] of grassPatches) {
+    const patch = new THREE.Mesh(new THREE.CircleGeometry(pr, 32), patchMat);
+    patch.rotation.x = -Math.PI / 2;
+    patch.position.set(px, 0.021, pz);
+    group.add(patch);
+  }
+
   // ── Plaza + organic winding paths ─────────────────────────────────────────
   const plazaRim = new THREE.Mesh(new THREE.CircleGeometry(2.3, 48), std(PATH_RIM));
   plazaRim.rotation.x = -Math.PI / 2;
@@ -1451,6 +1568,26 @@ export function buildIsland(): IslandBuild {
     group.add(c);
   }
 
+  // ── Seagulls circling far out over the sea (engine orbits + flaps) ────────
+  const gulls: THREE.Group[] = [];
+  const gullSpecs: [number, number, number, number][] = [
+    // [radius, y, speed, angleStart]
+    [27, 8.5, 0.012, 0.4],
+    [33, 10.5, 0.01, 2.2],
+    [25, 7.5, 0.016, 4.0],
+  ];
+  for (let i = 0; i < gullSpecs.length; i++) {
+    const [gr, gy, gs, ga] = gullSpecs[i];
+    const gull = makeGull(900 + i);
+    gull.userData.angle = ga;
+    gull.userData.radius = gr;
+    gull.userData.speed = gs;
+    gull.userData.y = gy;
+    gull.position.set(Math.cos(ga) * gr, gy, Math.sin(ga) * gr);
+    gulls.push(gull);
+    group.add(gull);
+  }
+
   group.add(cliffC, cliffB, cliffA, sand, wet, sea, grass, lip, walkSurface);
 
   // ── Interaction points (positions/radii fixed by contract) ────────────────
@@ -1484,5 +1621,5 @@ export function buildIsland(): IslandBuild {
     },
   ];
 
-  return { group, walkSurface, colliders, points, clouds, foam, flames, waves, sea, butterflies };
+  return { group, walkSurface, colliders, points, clouds, foam, flames, waves, sea, butterflies, gulls };
 }
