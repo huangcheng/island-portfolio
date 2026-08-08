@@ -1529,7 +1529,12 @@ export function buildIsland(): IslandBuild {
   hammock.position.set(5.4, -0.04, 15.1);
   hammock.rotation.y = 1.15; // sheet length runs along the shoreline
   group.add(hammock);
-  colliders.push({ x: 4.6, z: 14.3, r: 0.3 }, { x: 6.2, z: 15.9, r: 0.3 });
+  // Colliders follow the rotated beam: centre + both posts
+  colliders.push(
+    { x: 5.4, z: 15.1, r: 0.6 },
+    { x: 6.31, z: 15.51, r: 0.38 },
+    { x: 4.49, z: 14.69, r: 0.38 },
+  );
 
   const birdbath = makeBirdbath();
   birdbath.position.set(-3.6, 0, 4.6);
@@ -1537,7 +1542,12 @@ export function buildIsland(): IslandBuild {
   colliders.push({ x: -3.6, z: 4.6, r: 0.45 });
 
   group.add(makePicketFence(-9.9, -6.4, 7));
-  colliders.push({ x: -9.9, z: -5.15, r: 0.5 });
+  // Colliders along the whole fence run (7 pickets × 0.42 from z=-6.4)
+  colliders.push(
+    { x: -9.9, z: -6.3, r: 0.42 },
+    { x: -9.9, z: -5.15, r: 0.42 },
+    { x: -9.9, z: -4.0, r: 0.42 },
+  );
 
   const towel = makeBeachTowel();
   towel.position.set(1.6, 0.0, 15.9);
