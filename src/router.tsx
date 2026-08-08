@@ -1,34 +1,20 @@
 import { createRootRoute, createRoute, createRouter } from '@tanstack/react-router';
 import App from './ui/App';
-import { AboutDialog, ProjectsDialog, ContactDialog } from './ui/dialogs';
 
+/**
+ * Routes drive which in-world dialog is open — components render no DOM
+ * (zero-DOM WebGL UI); App watches the pathname and tells the engine.
+ */
 const rootRoute = createRootRoute({ component: App });
 
-const indexRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/',
-  component: () => null,
-});
+const none = () => null;
 
-const aboutRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/about',
-  component: AboutDialog,
-});
-
-const projectsRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/projects',
-  component: ProjectsDialog,
-});
-
-const contactRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/contact',
-  component: ContactDialog,
-});
-
-const routeTree = rootRoute.addChildren([indexRoute, aboutRoute, projectsRoute, contactRoute]);
+const routeTree = rootRoute.addChildren([
+  createRoute({ getParentRoute: () => rootRoute, path: '/', component: none }),
+  createRoute({ getParentRoute: () => rootRoute, path: '/about', component: none }),
+  createRoute({ getParentRoute: () => rootRoute, path: '/projects', component: none }),
+  createRoute({ getParentRoute: () => rootRoute, path: '/contact', component: none }),
+]);
 
 export const router = createRouter({ routeTree });
 

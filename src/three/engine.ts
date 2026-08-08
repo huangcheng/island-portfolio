@@ -149,10 +149,7 @@ export class Engine {
 
   dialogOpen = false;
 
-  constructor(
-    private canvas: HTMLCanvasElement,
-    uiEls: { dialogEl: HTMLElement; hudEl: HTMLElement },
-  ) {
+  constructor(private canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(canvas.clientWidth || window.innerWidth, canvas.clientHeight || window.innerHeight, false);
@@ -246,10 +243,13 @@ export class Engine {
     this.controls.snapCamera();
 
     this.interactions = new Interactions(this.scene, this.island.points);
-    this.interactions.onPrompt = (text) => this.emit('prompt', text);
+    this.interactions.onPrompt = (text) => this.ui.setPrompt(text);
     this.interactions.onInteract = (route) => this.emit('interact', route);
 
-    this.ui = new UiPanels(this.renderer, this.camera, uiEls.dialogEl, uiEls.hudEl);
+    this.ui = new UiPanels(this.renderer, this.camera);
+    this.ui.onNavigate = (to) => this.emit('interact', to);
+    // UI raycast gets first claim on every click, even while a dialog is open
+    this.controls.pickUi = (ndc) => this.ui.tryClick(ndc);
 
     // Centre the sky on the camera before the first frame so there's no flash.
     this.sky.position.copy(this.camera.position);
@@ -302,10 +302,10 @@ export class Engine {
     this.listeners.get(event)?.forEach((cb) => (cb as (p?: unknown) => void)(payload));
   }
 
-  setDialogOpen(open: boolean) {
-    this.dialogOpen = open;
-    this.controls.inputEnabled = !open;
-    this.ui.setDialogVisible(open);
+  setRoute(path: string) {
+    this.dialogOpen = path !== '/';
+    this.controls.inputEnabled = !this.dialogOpen;
+    this.ui.showRoute(path);
   }
 
   start() {
@@ -426,6 +426,7 @@ export class Engine {
     window.removeEventListener('keydown', this.onKeyDown);
     this.controls.dispose();
     this.interactions.dispose();
+    this.ui.dispose();
 
     // Atmosphere resources
     this.sky.geometry.dispose();

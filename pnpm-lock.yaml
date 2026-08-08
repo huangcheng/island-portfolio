@@ -20,9 +20,9 @@ importers:
       three:
         specifier: ^0.185.1
         version: 0.185.1
-      three-html-render:
-        specifier: ^0.1.2
-        version: 0.1.2(three@0.185.1)
+      troika-three-text:
+        specifier: ^0.52.5
+        version: 0.52.5(three@0.185.1)
     devDependencies:
       '@types/react':
         specifier: ^19.2.18
@@ -201,6 +201,9 @@ packages:
       babel-plugin-react-compiler:
         optional: true
 
+  bidi-js@1.0.3:
+    resolution: {integrity: sha512-RKshQI1R3YQ+n9YJz2QQ147P66ELpa1FQEg20Dk8oW9t2KgLbpDLLp9aGZ7y8WHSshDknG0bknqGw5/tyCs5tw==}
+
   cookie-es@3.1.1:
     resolution: {integrity: sha512-UaXxwISYJPTr9hwQxMFYZ7kNhSXboMXP+Z3TRX6f1/NyaGPfuNUZOWP1pUEb75B2HjfklIYLVRfWiFZJyC6Npg==}
 
@@ -334,6 +337,10 @@ packages:
     resolution: {integrity: sha512-PWaYA1L/q9u2u7xYQi+Y3L3Yfnie7XyLeaJICV1MGD6LprsBxcAqGjYyr0eY3p+QdsA+x/Irkt4Qif8D63+Sbw==}
     engines: {node: '>=0.10.0'}
 
+  require-from-string@2.0.2:
+    resolution: {integrity: sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw==}
+    engines: {node: '>=0.10.0'}
+
   rolldown@1.2.3:
     resolution: {integrity: sha512-rn9wpmxplLf7NLNyCk9FyWh3FM43DbY8jOzCdEPzH7uflhTftRbCEpqi6Ly2osgoU8OwObtmavMbWLaWy4LX7A==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -356,20 +363,25 @@ packages:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
     engines: {node: '>=0.10.0'}
 
-  three-html-render@0.1.2:
-    resolution: {integrity: sha512-JHx6x006LuLcHMRg+X3DyrrbPVsXklhFJGBtpTULFhbnpK7DidgGr6dJ6aTEaN9sc6uFgwI0VHExEYo4qwVSug==}
-    peerDependencies:
-      three: '>=0.150.0'
-    peerDependenciesMeta:
-      three:
-        optional: true
-
   three@0.185.1:
     resolution: {integrity: sha512-5aojFCXKwnjBRZvUnt3WFfEcvUJgkN5LlijRFN95hMy8WVkG4I0QNcJE+OuWvuJ0bOdStrbfXn0pkd6/QyiAlg==}
 
   tinyglobby@0.2.17:
     resolution: {integrity: sha512-wXR/dYpcqKmfWpEdZjiKJOwCNFndD0DMnrW/cYjVGttEkBfVgcLFHoNrlj47mjOVic9yyNu65alsgF4NQyTa2g==}
     engines: {node: '>=12.0.0'}
+
+  troika-three-text@0.52.5:
+    resolution: {integrity: sha512-Ry3jRhic9pzcY4JduSvRRyDmVOSqEW19gT4vtK+aCiPNVcDlmkxvGG0YbFd36RTDq1wExOupXnvNF/j1oiHHDA==}
+    peerDependencies:
+      three: '>=0.125.0'
+
+  troika-three-utils@0.52.5:
+    resolution: {integrity: sha512-WsePbcX8RtfidRfsxK1eCZCjF81ZDzAKHH/evLs0hdV2wpoCb0vArGZHdzdOJrSS3k4zfdtbKDaBh8+phkrYnw==}
+    peerDependencies:
+      three: '>=0.125.0'
+
+  troika-worker-utils@0.52.0:
+    resolution: {integrity: sha512-W1CpvTHykaPH5brv5VHLfQo9D1OYuo0cSBEUQFFT/nBUzM8iD6Lq2/tgG/f1OelbAS1WtaTPQzE5uM49egnngw==}
 
   typescript@5.9.3:
     resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
@@ -423,6 +435,9 @@ packages:
         optional: true
       yaml:
         optional: true
+
+  webgl-sdf-generator@1.1.1:
+    resolution: {integrity: sha512-9Z0JcMTFxeE+b2x1LJTdnaT8rT8aEp7MVxkNwoycNmJWwPdzoXzMh0BjJSh/AEFP+KPYZUli814h8bJZFIZ2jA==}
 
 snapshots:
 
@@ -529,6 +544,10 @@ snapshots:
       '@rolldown/pluginutils': 1.0.1
       vite: 8.2.1
 
+  bidi-js@1.0.3:
+    dependencies:
+      require-from-string: 2.0.2
+
   cookie-es@3.1.1: {}
 
   csstype@3.2.3: {}
@@ -616,6 +635,8 @@ snapshots:
 
   react@19.2.8: {}
 
+  require-from-string@2.0.2: {}
+
   rolldown@1.2.3:
     dependencies:
       '@oxc-project/types': 0.143.0
@@ -646,16 +667,26 @@ snapshots:
 
   source-map-js@1.2.1: {}
 
-  three-html-render@0.1.2(three@0.185.1):
-    optionalDependencies:
-      three: 0.185.1
-
   three@0.185.1: {}
 
   tinyglobby@0.2.17:
     dependencies:
       fdir: 6.5.0(picomatch@4.0.5)
       picomatch: 4.0.5
+
+  troika-three-text@0.52.5(three@0.185.1):
+    dependencies:
+      bidi-js: 1.0.3
+      three: 0.185.1
+      troika-three-utils: 0.52.5(three@0.185.1)
+      troika-worker-utils: 0.52.0
+      webgl-sdf-generator: 1.1.1
+
+  troika-three-utils@0.52.5(three@0.185.1):
+    dependencies:
+      three: 0.185.1
+
+  troika-worker-utils@0.52.0: {}
 
   typescript@5.9.3: {}
 
@@ -672,3 +703,5 @@ snapshots:
       tinyglobby: 0.2.17
     optionalDependencies:
       fsevents: 2.3.3
+
+  webgl-sdf-generator@1.1.1: {}

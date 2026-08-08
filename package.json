@@ -14,7 +14,7 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "three": "^0.185.1",
-    "three-html-render": "^0.1.2"
+    "troika-three-text": "^0.52.5"
   },
   "devDependencies": {
     "@types/react": "^19.2.18",

@@ -24,6 +24,8 @@ export class Controls {
   onGroundClick: (() => void) | null = null;
   /** Return true when a click hits an interactable sprite instead of the ground. */
   pickInteractable: ((ndc: THREE.Vector2) => boolean) | null = null;
+  /** UI raycast gets FIRST claim on every click (works even while walking is gated). */
+  pickUi: ((ndc: THREE.Vector2) => boolean) | null = null;
 
   /** AC:NH-style low follow camera (~33° above horizon — sky stays visible). */
   private readonly camOffset = new THREE.Vector3(0, 8.6, 12.6);
@@ -67,11 +69,13 @@ export class Controls {
   private onPointerDown = (e: PointerEvent) => {
     // Clicks that originate on in-canvas HTML UI must not move the villager.
     if (e.target !== this.canvas) return;
-    if (!this.inputEnabled) return;
 
     const rect = this.canvas.getBoundingClientRect();
     this.ndc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
 
+    // 3D UI (dialog buttons etc.) always claims first
+    if (this.pickUi?.(this.ndc)) return;
+    if (!this.inputEnabled) return;
     if (this.pickInteractable?.(this.ndc)) return;
 
     this.raycaster.setFromCamera(this.ndc, this.camera);
