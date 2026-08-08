@@ -692,16 +692,11 @@ function buildMuseum(): InteriorBuild {
   addBox(scene, T, WH, maxZ - minZ, wallMat, maxX, WH / 2, 0); // east
   addBox(scene, T, WH, maxZ - minZ, wallMat, minX, WH / 2, 0); // west
   const segW = (maxX - minX - 2) / 2; // 7
-  addBox(scene, segW, WH, T, wallMat, -(segW / 2 + 1), WH / 2, maxZ); // south-L
-  addBox(scene, segW, WH, T, wallMat, segW / 2 + 1, WH / 2, maxZ); // south-R
-  addBox(scene, 2.4, 1.0, T, wallMat, 0, WH - 0.5, maxZ); // door lintel
-  const trimMat = std(PAL.woodMid, 0.85);
-  const postL = new THREE.Mesh(rbox(0.14, 3.0, 0.14, 0.04), trimMat);
-  postL.position.set(-1.05, 1.5, maxZ);
-  scene.add(postL);
-  const postR = new THREE.Mesh(rbox(0.14, 3.0, 0.14, 0.04), trimMat);
-  postR.position.set(1.05, 1.5, maxZ);
-  scene.add(postR);
+  // South walls are LOW STUBS (dollhouse cutaway) — the follow camera looks
+  // INTO the room over them instead of staring over a full-height wall top.
+  const stubH = 0.7;
+  addBox(scene, segW, stubH, T, wallMat, -(segW / 2 + 1), stubH / 2, maxZ); // south-L stub
+  addBox(scene, segW, stubH, T, wallMat, segW / 2 + 1, stubH / 2, maxZ); // south-R stub
 
   // ── Baseboards ──
   const bbMat = std(PAL.baseboard, 0.9);
@@ -848,16 +843,10 @@ function buildHouse(): InteriorBuild {
   addBox(scene, T, WH, maxZ - minZ, wallMat, maxX, WH / 2, 0); // east
   addBox(scene, T, WH, maxZ - minZ, wallMat, minX, WH / 2, 0); // west
   const segW = (maxX - minX - 2) / 2; // 5
-  addBox(scene, segW, WH, T, wallMat, -(segW / 2 + 1), WH / 2, maxZ); // south-L
-  addBox(scene, segW, WH, T, wallMat, segW / 2 + 1, WH / 2, maxZ); // south-R
-  addBox(scene, 2.4, 0.9, T, wallMat, 0, WH - 0.45, maxZ); // lintel
-  const trimMat = std(PAL.woodMid, 0.85);
-  const postL = new THREE.Mesh(rbox(0.14, 2.6, 0.14, 0.04), trimMat);
-  postL.position.set(-1.05, 1.3, maxZ);
-  scene.add(postL);
-  const postR = new THREE.Mesh(rbox(0.14, 2.6, 0.14, 0.04), trimMat);
-  postR.position.set(1.05, 1.3, maxZ);
-  scene.add(postR);
+  // South walls are LOW STUBS (dollhouse cutaway) — camera looks INTO the room.
+  const stubH = 0.65;
+  addBox(scene, segW, stubH, T, wallMat, -(segW / 2 + 1), stubH / 2, maxZ); // south-L stub
+  addBox(scene, segW, stubH, T, wallMat, segW / 2 + 1, stubH / 2, maxZ); // south-R stub
 
   // ── Baseboards ──
   const bbMat = std(PAL.baseboard, 0.9);

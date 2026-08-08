@@ -171,12 +171,8 @@ export class Controls {
       this.camTarget.set(p.x + this.camOffset.x, this.camOffset.y, p.z + this.camOffset.z);
       const k = 1 - Math.exp(-3.4 * dt);
       this.camera.position.lerp(this.camTarget, k);
-      // Indoors (box bounds) keep the camera INSIDE the room
-      if (this.bounds.type === 'box') {
-        const b = this.bounds;
-        this.camera.position.x = Math.min(b.maxX - 0.8, Math.max(b.minX + 0.8, this.camera.position.x));
-        this.camera.position.z = Math.min(b.maxZ - 0.6, Math.max(b.minZ + 0.8, this.camera.position.z));
-      }
+      // (No camera clamping indoors — interiors have cutaway south walls,
+      // so the normal follow view looks INTO the room like AC dollhouses.)
       if (!this.lookAtInit) {
         this.lookAt.copy(p);
         this.lookAtInit = true;
