@@ -1101,10 +1101,10 @@ export function addBuildings(group: THREE.Group, colliders: Collider[]): void {
   colliders.push({ x: -6.5, z: -4.6, r: 3.0 });
 
   const houseSign = makeSign('About');
-  houseSign.position.set(-4.7, 0, -1.1);
-  houseSign.rotation.y = Math.atan2(4.7, 1.6);
+  houseSign.position.set(-5.3, 0, -1.6); // flanks the door approach (never blocks it)
+  houseSign.rotation.y = Math.atan2(5.3, 2.1);
   group.add(houseSign);
-  colliders.push({ x: -4.7, z: -1.1, r: 0.5 });
+  colliders.push({ x: -5.3, z: -1.6, r: 0.5 });
 
   const museum = makeMuseum();
   museum.position.set(6.6, 0, -5.2);
@@ -1113,10 +1113,10 @@ export function addBuildings(group: THREE.Group, colliders: Collider[]): void {
   colliders.push({ x: 6.6, z: -5.2, r: 3.6 });
 
   const museumSign = makeSign('Museum');
-  museumSign.position.set(4.8, 0, -1.4);
-  museumSign.rotation.y = Math.atan2(-4.8, 1.9);
+  museumSign.position.set(5.6, 0, -1.2); // flanks the door approach
+  museumSign.rotation.y = Math.atan2(-5.6, 1.7);
   group.add(museumSign);
-  colliders.push({ x: 4.8, z: -1.4, r: 0.5 });
+  colliders.push({ x: 5.6, z: -1.2, r: 0.5 });
 
   const board = makeNoticeBoard();
   board.position.set(6.2, 0, 5.2);
