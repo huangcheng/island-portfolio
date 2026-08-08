@@ -1100,7 +1100,7 @@ export function addBuildings(group: THREE.Group, colliders: Collider[]): void {
   group.add(house);
   colliders.push({ x: -6.5, z: -4.6, r: 3.0 });
 
-  const houseSign = makeSign('About');
+  const houseSign = makeSign('Home');
   houseSign.position.set(-5.3, 0, -1.6); // flanks the door approach (never blocks it)
   houseSign.rotation.y = Math.atan2(5.3, 2.1);
   group.add(houseSign);
