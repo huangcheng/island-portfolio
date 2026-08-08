@@ -28,16 +28,17 @@ export interface IslandBuild {
   foam: THREE.Mesh[];
   /** Campfire/torch flames — the engine flickers them. */
   flames: THREE.Mesh[];
+  /** Wave-crest marks on the water — the engine bobs/shimmers them. */
+  waves: THREE.Mesh[];
+  /** The sea mesh (ShaderMaterial) — the engine feeds uTime. */
+  sea: THREE.Mesh;
+  /** Butterflies fluttering over flower beds — the engine flies them. */
+  butterflies: Butterfly[];
 }
 
 // ── Palette ───────────────────────────────────────────────────────────────
 const GRASS_DARK = 0x6cb83f;
-const DIRT_HI = 0xa06a3f;
-const DIRT_MID = 0x8a5a33;
-const DIRT_LO = 0x6e4424;
-const SAND = 0xf7e6ad;
 const SAND_WET = 0xe6cf8e;
-const SEA = 0x3fbcd4;
 const PATH_CENTER = 0xece0b0;
 const PATH_RIM = 0xcdb884;
 const LEAF_DARK = 0x4a9d3a;
@@ -584,20 +585,95 @@ function makePebble(x: number, z: number, rng: () => number): THREE.Mesh {
   return m;
 }
 
-// ── Cloud: 4-6 overlapping squashed spheres ────────────────────────────────
+// ── Cloud: puffy AC cumulus — flat base, rounded bumps rising from it ───────
 function makeCloud(seed: number): THREE.Group {
   const g = new THREE.Group();
   const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 });
+  const shade = new THREE.MeshStandardMaterial({ color: 0xdfeefc, roughness: 1 });
   const rng = mulberry32(seed * 97 + 13);
-  const n = 4 + ((rng() * 3) | 0);
+  // Base row: bumps whose BOTTOMS all sit on the same plane (flat-bottom look)
+  const n = 3 + ((rng() * 3) | 0);
   for (let i = 0; i < n; i++) {
+    const r = 0.75 + rng() * 0.55;
     const s = new THREE.Mesh(G_SPHERE, m);
-    const r = 1.0 + rng() * 0.5;
-    s.position.set((rng() - 0.5) * 3.2, (rng() - 0.5) * 0.5, (rng() - 0.5) * 1.4);
-    s.scale.set(r, r * 0.6, r * 0.85);
+    const sy = r * 0.52;
+    s.position.set((i - (n - 1) / 2) * (1.05 + rng() * 0.3), sy, (rng() - 0.5) * 0.7);
+    s.scale.set(r, sy, r * 0.8);
     g.add(s);
   }
+  // One smaller cap bump rising above the middle (the cumulus peak)
+  const cap = new THREE.Mesh(G_SPHERE, m);
+  const cr = 0.65 + rng() * 0.3;
+  cap.position.set((rng() - 0.5) * 0.6, 0.52 + cr * 0.42, (rng() - 0.5) * 0.3);
+  cap.scale.set(cr, cr * 0.62, cr * 0.8);
+  g.add(cap);
+  // Thin cool-toned skirt under the base sells the flat-bottomed shading
+  const skirt = new THREE.Mesh(G_SPHERE, shade);
+  skirt.position.set(0, 0.06, 0);
+  skirt.scale.set(n * 0.75, 0.1, 0.85);
+  g.add(skirt);
   return g;
+}
+
+// ── Butterfly: flapping wings, wanders a flower bed (engine-animated) ───────
+export interface Butterfly {
+  group: THREE.Group;
+  wingL: THREE.Mesh;
+  wingR: THREE.Mesh;
+  anchor: THREE.Vector3;
+  phase: number;
+}
+
+function makeButterfly(color: number, anchor: THREE.Vector3, phase: number): Butterfly {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.018, 0.09, 4, 6), std(0x3a3230, 0.7));
+  body.rotation.x = Math.PI / 2;
+  g.add(body);
+  const wingGeo = new THREE.PlaneGeometry(0.17, 0.13);
+  wingGeo.rotateX(-Math.PI / 2);
+  const wingMat = new THREE.MeshStandardMaterial({ color, roughness: 0.7, side: THREE.DoubleSide });
+  const wingLGeo = wingGeo.clone();
+  wingLGeo.translate(-0.085, 0, 0); // pivot at the body
+  const wingRGeo = wingGeo.clone();
+  wingRGeo.translate(0.085, 0, 0);
+  const wingL = new THREE.Mesh(wingLGeo, wingMat);
+  const wingR = new THREE.Mesh(wingRGeo, wingMat);
+  g.add(wingL, wingR);
+  return { group: g, wingL, wingR, anchor, phase };
+}
+
+/** Dirt cliff texture: horizontal wavy strata + speckle, like AC rock walls. */
+function makeDirtTexture(base: string, band: string): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, 256, 256);
+  const rng = mulberry32(base.length * 131 + band.length * 17);
+  ctx.strokeStyle = band;
+  for (let row = 0; row < 4; row++) {
+    ctx.lineWidth = 5 + rng() * 5;
+    ctx.globalAlpha = 0.35 + rng() * 0.2;
+    ctx.beginPath();
+    const y = 30 + row * 62 + rng() * 12;
+    ctx.moveTo(0, y);
+    for (let x = 0; x <= 256; x += 32) {
+      ctx.lineTo(x, y + Math.sin(x * 0.06 + row) * 5 + (rng() - 0.5) * 4);
+    }
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 0.5;
+  for (let i = 0; i < 220; i++) {
+    ctx.fillStyle = band;
+    ctx.fillRect(rng() * 256, rng() * 256, 2, 2);
+  }
+  ctx.globalAlpha = 1;
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(10, 1);
+  return tex;
 }
 
 // ── Cozy corner props (from the official decorating refs) ───────────────────
@@ -824,6 +900,151 @@ function makeHyacinth(x: number, z: number, color: number, rng: () => number): T
   return g;
 }
 
+// ── Sea/sand textures + scalloped foam + wave crests (official AC water) ────
+
+/**
+ * Stylized-realistic AC water shader: animated wave normals + banded sun
+ * glints + twinkling horizon sparkles — realistic shading, cartoon palette.
+ */
+function makeSeaMaterial(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uSunDir: { value: new THREE.Vector3(13, 15, 9).normalize() },
+    },
+    vertexShader: /* glsl */ `
+      varying vec3 vWorld;
+      void main() {
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorld = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform float uTime;
+      uniform vec3 uSunDir;
+      varying vec3 vWorld;
+
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float noise(vec2 p) {
+        vec2 i = floor(p), f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x),
+                   mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
+      }
+
+      void main() {
+        float r = length(vWorld.xz);
+        vec2 p = vWorld.xz;
+        float t = uTime;
+
+        // Depth gradient: aqua shallows → rich blue deep water (quick falloff,
+        // like the refs: it gets properly BLUE just past the shallow ring)
+        vec3 col = mix(vec3(0.38, 0.76, 0.86), vec3(0.16, 0.5, 0.8), smoothstep(18.0, 33.0, r));
+        col = mix(col, vec3(0.08, 0.32, 0.65), smoothstep(33.0, 85.0, r));
+
+        // Animated wave normal (traveling sines + noise ripple)
+        float nx = sin(p.x * 0.32 + t * 1.1) * 0.35 + sin(p.x * 0.13 - t * 0.7) * 0.5
+                 + (noise(p * 0.22 + t * 0.25) - 0.5) * 0.8;
+        float nz = sin(p.y * 0.29 - t * 0.9) * 0.35 + sin(p.y * 0.15 + t * 0.6) * 0.5
+                 + (noise(p * 0.19 - t * 0.2) - 0.5) * 0.8;
+        vec3 n = normalize(vec3(nx * 0.35, 1.0, nz * 0.35));
+
+        // Banded sun glints — the "realistic but toon" highlight
+        vec3 viewDir = normalize(cameraPosition - vWorld);
+        vec3 h = normalize(uSunDir + viewDir);
+        float spec = pow(max(dot(n, h), 0.0), 90.0);
+        col += vec3(1.0, 0.96, 0.82) * smoothstep(0.25, 0.75, spec) * 0.65;
+
+        // Moving light/shadow ripple bands so the surface lives even off-glint
+        float shade = noise(p * 0.33 + t * 0.2) * 0.6 + noise(p * 0.11 - t * 0.08) * 0.4;
+        col *= 0.93 + shade * 0.14;
+
+        // Twinkling sparkles out toward the horizon (AC signature dots)
+        float sparkle = step(0.988, hash(floor(p * 3.0) + floor(t * 3.0)))
+                      * smoothstep(24.0, 40.0, r);
+        col += vec3(0.9) * sparkle;
+
+        // Subtle animated caustic web in the shallows
+        float ca = noise(p * 0.5 + t * 0.15) * noise(p * 0.45 - t * 0.12);
+        col += vec3(0.10, 0.18, 0.20) * smoothstep(0.24, 0.4, ca) * (1.0 - smoothstep(30.0, 60.0, r));
+
+        gl_FragColor = vec4(col, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `,
+    fog: false,
+  });
+}
+
+/** Sand with subtle speckles + tiny shell flecks. */
+function makeSandTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 512;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#f7e6ad';
+  ctx.fillRect(0, 0, 512, 512);
+  const rng = mulberry32(777);
+  for (let i = 0; i < 520; i++) {
+    ctx.fillStyle = rng() < 0.6 ? '#ecd9a0' : '#e6cf8e';
+    ctx.beginPath();
+    ctx.arc(rng() * 512, rng() * 512, 1 + rng() * 1.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  for (let i = 0; i < 110; i++) {
+    ctx.fillStyle = '#fff8e7';
+    ctx.beginPath();
+    ctx.arc(rng() * 512, rng() * 512, 1 + rng() * 1.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(3, 3);
+  return tex;
+}
+
+/**
+ * Organic wavy foam line hugging the shore — the real AC foam is a thin
+ * hand-drawn wavy band that breathes in/out, NOT a chain of dots.
+ */
+function makeFoamRibbon(radius: number, width: number, waves: number, amp: number, phase: number): THREE.BufferGeometry {
+  const segs = 240;
+  const positions: number[] = [];
+  const indices: number[] = [];
+  for (let i = 0; i <= segs; i++) {
+    const t = (i / segs) * Math.PI * 2;
+    const wob = Math.sin(t * waves + phase) * amp + Math.sin(t * waves * 2.3 + phase * 1.7) * amp * 0.35;
+    const r = radius + wob;
+    positions.push(Math.cos(t) * (r + width / 2), 0, Math.sin(t) * (r + width / 2));
+    positions.push(Math.cos(t) * (r - width / 2), 0, Math.sin(t) * (r - width / 2));
+    if (i < segs) {
+      const a = i * 2;
+      indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/** Small white "mustache" wave-crest mark (flat partial torus arc). */
+function makeWaveCrest(rng: () => number): THREE.Mesh {
+  const r = 0.26 + rng() * 0.22;
+  const arc = 1.0 + rng() * 0.5;
+  const geo = new THREE.TorusGeometry(r, 0.034, 6, 14, arc);
+  geo.rotateX(-Math.PI / 2); // bake flat onto XZ
+  const crest = new THREE.Mesh(
+    geo,
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 }),
+  );
+  crest.rotation.y = rng() * Math.PI * 2;
+  return crest;
+}
+
 // ── Organic winding path of overlapping flattened blobs ─────────────────────
 function placePath(
   group: THREE.Group,
@@ -885,7 +1106,10 @@ export function buildIsland(): IslandBuild {
   lip.castShadow = true;
 
   // Beach sand ring (full disc, grass sits on top revealing the ring 15→18)
-  const sand = new THREE.Mesh(new THREE.CircleGeometry(18, 96), std(SAND, 0.95));
+  const sand = new THREE.Mesh(
+    new THREE.CircleGeometry(18, 96),
+    new THREE.MeshStandardMaterial({ map: makeSandTexture(), roughness: 0.95 }),
+  );
   sand.rotation.x = -Math.PI / 2;
   sand.position.y = -0.04;
   sand.receiveShadow = true;
@@ -895,45 +1119,67 @@ export function buildIsland(): IslandBuild {
   wet.position.y = -0.03;
 
   // Layered dirt cliff (3 graduated-brown tiers) — the island wall into the sea
-  const cliffA = new THREE.Mesh(new THREE.CylinderGeometry(18.0, 18.35, 0.5, 96), std(DIRT_HI));
+  const cliffA = new THREE.Mesh(
+    new THREE.CylinderGeometry(18.0, 18.35, 0.5, 96),
+    new THREE.MeshStandardMaterial({ map: makeDirtTexture('#a06a3f', '#8a5a33'), roughness: 0.95 }),
+  );
   cliffA.position.y = -0.3;
   cliffA.receiveShadow = true;
   cliffA.castShadow = true;
-  const cliffB = new THREE.Mesh(new THREE.CylinderGeometry(18.35, 18.75, 0.52, 96), std(DIRT_MID));
+  const cliffB = new THREE.Mesh(
+    new THREE.CylinderGeometry(18.35, 18.75, 0.52, 96),
+    new THREE.MeshStandardMaterial({ map: makeDirtTexture('#8a5a33', '#6e4424'), roughness: 0.95 }),
+  );
   cliffB.position.y = -0.82;
   cliffB.receiveShadow = true;
   cliffB.castShadow = true;
-  const cliffC = new THREE.Mesh(new THREE.CylinderGeometry(18.75, 19.4, 0.62, 96), std(DIRT_LO));
+  const cliffC = new THREE.Mesh(
+    new THREE.CylinderGeometry(18.75, 19.4, 0.62, 96),
+    new THREE.MeshStandardMaterial({ map: makeDirtTexture('#6e4424', '#54331a'), roughness: 0.95 }),
+  );
   cliffC.position.y = -1.38;
   cliffC.receiveShadow = true;
 
-  // Sea disc
-  const sea = new THREE.Mesh(
-    new THREE.CircleGeometry(110, 96),
-    new THREE.MeshStandardMaterial({ color: SEA, roughness: 0.22, metalness: 0.08 }),
-  );
+  // Sea disc with the stylized-realistic water shader (engine feeds uTime)
+  const sea = new THREE.Mesh(new THREE.CircleGeometry(110, 96), makeSeaMaterial());
   sea.rotation.x = -Math.PI / 2;
   sea.position.y = -1.15;
 
-  // Foam rings drifting around the beach (engine pulses scale + opacity)
-  const foamMatBase = () => new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 });
-  for (const r of [18.55, 19.35, 20.2]) {
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.1, 8, 120), foamMatBase());
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = -1.08;
-    foam.push(ring);
-    group.add(ring);
-  }
-  // Static wave-curve accents near the shore
-  const waveMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
-  for (let i = 0; i < 6; i++) {
-    const ang = (i / 6) * Math.PI * 2 + rng() * 0.6;
-    const wr = 17.6 + rng() * 0.7;
-    const wave = new THREE.Mesh(new THREE.TorusGeometry(wr, 0.035, 6, 20, 0.7 + rng() * 0.4), waveMat);
-    wave.position.set(Math.cos(ang) * wr, -0.12, Math.sin(ang) * wr);
-    wave.rotation.x = -Math.PI / 2;
-    wave.rotation.z = ang;
-    group.add(wave);
+  // Translucent shallow-water zone right off the cliff (clear aqua over sand)
+  const shallow = new THREE.Mesh(
+    new THREE.RingGeometry(18.8, 21.6, 96),
+    new THREE.MeshStandardMaterial({ color: 0x9fe4f2, transparent: true, opacity: 0.5, roughness: 0.12 }),
+  );
+  shallow.rotation.x = -Math.PI / 2;
+  shallow.position.y = -1.13;
+
+  // Organic wavy foam lines (engine pulses them in/out — the AC foam breath)
+  const foamMatBase = () =>
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.88, side: THREE.DoubleSide });
+  // Crisp white waterline right at the cliff/water junction
+  const waterline = new THREE.Mesh(new THREE.TorusGeometry(19.05, 0.055, 6, 140), foamMatBase());
+  waterline.rotation.x = -Math.PI / 2;
+  waterline.position.y = -1.12;
+  // Main foam line hugging the shore — long slow waves
+  const foamIn = new THREE.Mesh(makeFoamRibbon(19.55, 0.3, 5, 0.32, 0), foamMatBase());
+  foamIn.position.y = -1.05;
+  foamIn.material.opacity = 0.95;
+  // Second fainter wavy line further out, different rhythm
+  const foamOut = new THREE.Mesh(makeFoamRibbon(21.3, 0.17, 7, 0.48, 2.1), foamMatBase());
+  foamOut.position.y = -1.08;
+  foamOut.material.opacity = 0.4;
+  foam.push(waterline, foamIn, foamOut);
+  group.add(shallow, waterline, foamIn, foamOut);
+
+  // Wave-crest marks scattered on the water (engine bobs + shimmers them)
+  const waves: THREE.Mesh[] = [];
+  for (let i = 0; i < 44; i++) {
+    const ang = rng() * Math.PI * 2;
+    const wr = 21.5 + rng() * 36;
+    const crest = makeWaveCrest(rng);
+    crest.position.set(Math.cos(ang) * wr, -1.06, Math.sin(ang) * wr);
+    waves.push(crest);
+    group.add(crest);
   }
 
   // Invisible walk raycast surface
@@ -1185,6 +1431,14 @@ export function buildIsland(): IslandBuild {
   group.add(makeHyacinth(7.6, -0.8, 0x7f9fe8, rng));
   group.add(makeHyacinth(1.8, 7.8, 0xffffff, rng));
 
+  // ── Butterflies fluttering over the flower beds ──────────────────────────
+  const butterflies: Butterfly[] = [
+    makeButterfly(0xff9a3c, new THREE.Vector3(-2.2, 0, 3.2), 0),
+    makeButterfly(0xffffff, new THREE.Vector3(8.8, 0, 0.4), 2.4),
+    makeButterfly(0x63b3e8, new THREE.Vector3(-5.4, 0, 2.6), 4.8),
+  ];
+  for (const b of butterflies) group.add(b.group);
+
   // ── Clouds ─────────────────────────────────────────────────────────────────
   for (let i = 0; i < 5; i++) {
     const c = makeCloud(i * 3 + 1);
@@ -1230,5 +1484,5 @@ export function buildIsland(): IslandBuild {
     },
   ];
 
-  return { group, walkSurface, colliders, points, clouds, foam, flames };
+  return { group, walkSurface, colliders, points, clouds, foam, flames, waves, sea, butterflies };
 }

@@ -365,6 +365,32 @@ export class Engine {
       f.rotation.y += dt * (2 + i * 0.3);
     });
 
+    // Wave crests bob + shimmer on the water
+    this.island.waves.forEach((w, i) => {
+      const ph = i * 1.37;
+      w.position.y = -1.06 + Math.sin(this.time * 1.3 + ph) * 0.045;
+      (w.material as THREE.MeshBasicMaterial).opacity = 0.26 + 0.2 * (0.5 + 0.5 * Math.sin(this.time * 0.8 + ph * 2.3));
+    });
+
+    // Water shader time
+    (this.island.sea.material as THREE.ShaderMaterial).uniforms.uTime.value = this.time;
+
+    // Butterflies: lissajous wander around their flower bed + wing flap
+    this.island.butterflies.forEach((b) => {
+      const t = this.time * 1 + b.phase;
+      const vx = Math.cos(t * 0.5) * 0.65;
+      const vz = -Math.sin(t * 0.37) * 0.48;
+      b.group.position.set(
+        b.anchor.x + Math.sin(t * 0.5) * 1.3,
+        0.95 + Math.sin(t * 1.4) * 0.28,
+        b.anchor.z + Math.cos(t * 0.37) * 1.3,
+      );
+      b.group.rotation.y = Math.atan2(vx, vz);
+      const flap = Math.sin(t * 15) * 0.95;
+      b.wingL.rotation.z = flap;
+      b.wingR.rotation.z = -flap;
+    });
+
     // Floating petals: sinusoidal sway + slow downward drift that wraps through
     // a vertical band, with a gentle tumble so they flutter like leaves.
     const t = this.time;

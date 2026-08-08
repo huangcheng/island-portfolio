@@ -25,7 +25,8 @@ export class Controls {
   /** Return true when a click hits an interactable sprite instead of the ground. */
   pickInteractable: ((ndc: THREE.Vector2) => boolean) | null = null;
 
-  private readonly camOffset = new THREE.Vector3(0, 13.2, 11.2);
+  /** AC:NH-style low follow camera (~33° above horizon — sky stays visible). */
+  private readonly camOffset = new THREE.Vector3(0, 8.6, 12.6);
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -140,7 +141,7 @@ export class Controls {
         this.lookAt.copy(p);
         this.lookAtInit = true;
       } else {
-        this.lookAt.lerp(new THREE.Vector3(p.x, 0.9, p.z), k);
+        this.lookAt.lerp(new THREE.Vector3(p.x, 1.15, p.z), k);
       }
       this.camera.lookAt(this.lookAt);
     }
@@ -152,7 +153,7 @@ export class Controls {
   snapCamera() {
     const p = this.villager.position;
     this.camera.position.set(p.x + this.camOffset.x, this.camOffset.y, p.z + this.camOffset.z);
-    this.lookAt.set(p.x, 0.9, p.z);
+    this.lookAt.set(p.x, 1.15, p.z);
     this.lookAtInit = true;
     this.camera.lookAt(this.lookAt);
   }
