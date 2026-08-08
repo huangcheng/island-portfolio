@@ -1,0 +1,617 @@
+/* ------------------------------------------------------------------ */
+/* Page chrome                                                         */
+/* ------------------------------------------------------------------ */
+
+@font-face {
+  font-family: 'Baloo 2';
+  src: url('/fonts/baloo2.woff2') format('woff2');
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --ac-cream: #fff8e7;
+  --ac-cream-dark: #f7ecc8;
+  --ac-brown: #6b4f2a;
+  --ac-brown-dark: #4a3520;
+  --ac-green: #5fb53f;
+  --ac-green-dark: #3f8c2a;
+  --ac-yellow: #ffd94d;
+  --ac-blue: #63b3e8;
+  --ac-blue-dark: #3f83b8;
+  --ac-orange: #f2a541;
+  --ac-orange-dark: #c67d22;
+  --ac-gold: #f4c430;
+  --ac-gold-dark: #b8860b;
+  --ac-text: #4a3520;
+
+  /* Official AC NH capsule palette */
+  --ac-paper: #fffef7; /* dialog / pill body */
+  --ac-line: #d9cdb4; /* thin soft border */
+  --ac-body: #5a4a3a; /* warm gray-brown body text */
+  --ac-teal: #17a398; /* section / topic titles */
+  --ac-pink: #ff9fb2; /* name pill */
+  --ac-pink-edge: #f07f96; /* name pill border */
+
+  --ac-font:
+    'Baloo 2', 'Arial Rounded MT Bold', 'Helvetica Rounded', 'Hiragino Maru Gothic ProN',
+    'Yu Gothic UI', system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #1b2a3a;
+  font-family: var(--ac-font);
+}
+
+.stage {
+  position: fixed;
+  inset: 0;
+}
+
+.stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+/* Loading veil shown until the engine reports its first frame. */
+.veil {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: linear-gradient(#8ecae6, #cdeafe);
+  color: var(--ac-text);
+  font-family: var(--ac-font);
+  font-size: 22px;
+  font-weight: 700;
+  transition: opacity 0.5s ease;
+  z-index: 10;
+}
+
+.veil.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.veil .leaf {
+  font-size: 44px;
+  animation: leaf-spin 1.6s ease-in-out infinite;
+}
+
+@keyframes leaf-spin {
+  0%,
+  100% {
+    transform: rotate(-12deg) scale(1);
+  }
+  50% {
+    transform: rotate(12deg) scale(1.12);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* In-canvas UI: everything below lives INSIDE <canvas layoutsubtree>  */
+/* and is rasterised into WebGL textures by three-html-render.         */
+/*                                                                    */
+/* Crisp-at-raster rules followed here:                               */
+/*  - depth comes from BORDERS + INSET shadows only (outer            */
+/*    box-shadows are clipped to the texture bounds);                 */
+/*  - no filters / backdrop-filter;                                   */
+/*  - no enter animations; hover/focus TRANSITIONS only;              */
+/*  - fixed element widths map 1:1 onto the 3D planes.                */
+/*                                                                    */
+/* Visual language = OFFICIAL Animal Crossing: New Horizons:          */
+/*  - near-white capsule (#fffef7), thin soft border (#d9cdb4),       */
+/*    very large radius; teal titles; warm gray-brown body.           */
+/* ------------------------------------------------------------------ */
+
+/* HUD pill (top-left) ------------------------------------------------ */
+.hud {
+  width: 700px;
+  padding: 12px 24px;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, #ffffff 0%, var(--ac-paper) 50%, var(--ac-cream) 100%);
+  border: 2.5px solid var(--ac-line);
+  color: var(--ac-body);
+  font-family: var(--ac-font);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.35;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.65),
+    inset 0 -3px 0 rgba(217, 205, 180, 0.22);
+}
+
+.hud .hud-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 21px;
+  font-weight: 800;
+  color: var(--ac-teal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hud .hud-sub {
+  opacity: 0.85;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ac-body);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hud .hud-prompt {
+  color: var(--ac-teal);
+  font-weight: 800;
+}
+
+/* Clock pill (bottom-left) ------------------------------------------- */
+.clock {
+  width: 300px;
+  padding: 8px 22px;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, #ffffff 0%, var(--ac-paper) 60%, var(--ac-cream) 100%);
+  border: 2.5px solid var(--ac-line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-family: var(--ac-font);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.65),
+    inset 0 -3px 0 rgba(217, 205, 180, 0.22);
+}
+
+.clock .clock-leaf {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.clock .clock-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.05;
+}
+
+.clock .clock-time {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--ac-brown-dark);
+  letter-spacing: 1px;
+}
+
+.clock .clock-date {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ac-body);
+  opacity: 0.72;
+  margin-top: 1px;
+}
+
+/* Dialog bubble ------------------------------------------------------ */
+/* `.dialog-host` IS the captured texture element. It carries a top
+   padding strip (room for the overhanging name pill) and a bottom strip
+   (room for the speech-bubble tail, drawn by ::before/::after so it is
+   never clipped by the rasteriser's border-box bounds). */
+.dialog-host {
+  position: relative;
+  width: fit-content;
+  padding-top: 34px;
+  padding-bottom: 28px;
+}
+
+/* NOTE: no CSS enter-animations here — every polyfill re-raster starts
+   CSS animations from frame 0 (opacity:0 = blank texture). The pop-in
+   is done in 3D on the plane instead (UiPanels.popT). */
+.dialog {
+  position: relative;
+  width: 1000px;
+  padding: 40px 48px 38px;
+  border-radius: 46px;
+  background:
+    linear-gradient(180deg, #ffffff 0%, var(--ac-paper) 55%, var(--ac-cream) 100%);
+  border: 2.5px solid var(--ac-line);
+  color: var(--ac-body);
+  font-family: var(--ac-font);
+  text-align: center;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -4px 0 rgba(217, 205, 180, 0.18);
+}
+
+/* Speech-bubble tail, bottom-centre. ::before = thin outline ring,
+   ::after = body-coloured fill painted on top. Both sit inside the
+   host's 28px bottom strip so they rasterise fully. */
+.dialog-host::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 24px solid transparent;
+  border-right: 24px solid transparent;
+  border-top: 28px solid var(--ac-line);
+  pointer-events: none;
+}
+
+.dialog-host::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 21px solid transparent;
+  border-right: 21px solid transparent;
+  border-top: 25px solid var(--ac-paper);
+  pointer-events: none;
+}
+
+/* Pink chat-bubble name pill, overlapping the top-left edge ---------- */
+.dialog .name-tag {
+  position: absolute;
+  top: -22px;
+  left: 42px;
+  padding: 8px 30px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffb3c3 0%, var(--ac-pink) 100%);
+  color: #ffffff;
+  border: 2.5px solid var(--ac-pink-edge);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.16);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -2px 0 rgba(240, 127, 150, 0.45);
+  transform: rotate(-2deg);
+  z-index: 2;
+}
+
+/* Small soft close circle, top-right, subtle ------------------------- */
+.dialog .close-btn {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2.5px solid var(--ac-line);
+  background: linear-gradient(180deg, var(--ac-paper) 0%, var(--ac-cream-dark) 100%);
+  color: var(--ac-brown);
+  font-size: 18px;
+  font-weight: 800;
+  font-family: var(--ac-font);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -2px 0 rgba(217, 205, 180, 0.4);
+  transition:
+    transform 0.12s ease,
+    background 0.12s ease;
+  z-index: 2;
+}
+
+.dialog .close-btn:hover {
+  transform: scale(1.1) rotate(90deg);
+  background: linear-gradient(180deg, #ffffff 0%, #fbf2da 100%);
+}
+
+.dialog .close-btn:focus-visible {
+  outline: 3px solid var(--ac-teal);
+  outline-offset: 2px;
+}
+
+/* Dialog body text --------------------------------------------------- */
+.dialog p {
+  margin: 0 0 16px;
+  font-size: 24px;
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--ac-body);
+}
+
+/* Visually-secondary line (About dialog second paragraph) */
+.dialog .dialog-aside {
+  font-size: 19px;
+  opacity: 0.6;
+  margin-bottom: 18px;
+}
+
+/* Teal section/topic title (Projects museum subtitle) */
+.dialog .dialog-subtitle {
+  margin: 0 0 18px;
+  font-size: 18px;
+  line-height: 1.4;
+  font-weight: 700;
+  color: var(--ac-teal);
+  letter-spacing: 0.3px;
+}
+
+.dialog .typewriter {
+  min-height: 110px;
+}
+
+/* Caret only while typing: CSS animations restart on every polyfill
+   re-raster, so a persistent blink would freeze mid-frame — this one is
+   fine because it only runs while the text content is mutating anyway. */
+.dialog .typewriter.typing::after {
+  content: '▍';
+  margin-left: 1px;
+  color: var(--ac-teal);
+  font-weight: 800;
+  animation: caret-blink 0.9s steps(1) infinite;
+}
+
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.dialog .row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+/* Soft AC link pills with a pressed-in bottom lip ------------------- */
+.ac-link {
+  --pill-top: #8fd683;
+  --pill-bot: #6fc26a;
+  --pill-edge: #4f9e4a;
+  --pill-deep: #3f7e3a;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--pill-top) 0%, var(--pill-bot) 100%);
+  border: 2.5px solid var(--pill-edge);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 800;
+  font-family: var(--ac-font);
+  text-decoration: none;
+  cursor: pointer;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.16);
+  /* darker bottom lip (pressed-in) + top sheen — both inset so they
+     never get clipped by the rasteriser */
+  box-shadow:
+    inset 0 -4px 0 var(--pill-deep),
+    inset 0 2px 0 rgba(255, 255, 255, 0.32);
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.ac-link:hover {
+  transform: translateY(-2px);
+  /* brighten without a filter: a 10% white wash painted under the text */
+  box-shadow:
+    inset 0 -4px 0 var(--pill-deep),
+    inset 0 2px 0 rgba(255, 255, 255, 0.5),
+    inset 0 0 0 1000px rgba(255, 255, 255, 0.1);
+}
+
+.ac-link:active {
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 -2px 0 var(--pill-deep),
+    inset 0 2px 0 rgba(255, 255, 255, 0.24);
+}
+
+.ac-link:focus-visible {
+  outline: 3px solid var(--ac-teal);
+  outline-offset: 2px;
+}
+
+.ac-link.secondary {
+  --pill-top: #9bcdee;
+  --pill-bot: #7ab8e8;
+  --pill-edge: #5a9bc9;
+  --pill-deep: #4a82b0;
+}
+
+.ac-link.mail {
+  --pill-top: #f8c878;
+  --pill-bot: #f5b45e;
+  --pill-edge: #d4923a;
+  --pill-deep: #b87a25;
+}
+
+/* Project cards (museum exhibit tags) -------------------------------- */
+.project-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.project-card {
+  position: relative;
+  display: block;
+  padding: 18px 22px 18px 30px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #ffffff 0%, #fffdf5 100%);
+  border: 2.5px solid var(--ac-line);
+  text-decoration: none;
+  color: var(--ac-body);
+  cursor: pointer;
+  text-align: left;
+  overflow: hidden;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.8);
+  transition:
+    transform 0.12s ease,
+    border-color 0.12s ease;
+}
+
+/* Green "spine" stripe down the left edge */
+.project-card::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 8px;
+  bottom: 8px;
+  width: 6px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, var(--ac-green) 0%, var(--ac-green-dark) 100%);
+}
+
+/* Faint leaf-watermark glow in the top-right corner */
+.project-card::after {
+  content: '';
+  position: absolute;
+  top: -32px;
+  right: -32px;
+  width: 124px;
+  height: 124px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(95, 181, 63, 0.1) 0%, rgba(95, 181, 63, 0) 70%);
+  pointer-events: none;
+}
+
+.project-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--ac-green-dark);
+}
+
+.project-card:focus-visible {
+  outline: 3px solid var(--ac-teal);
+  outline-offset: 1px;
+}
+
+.project-card .pc-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--ac-brown-dark);
+}
+
+/* Star count as a gold pill */
+.project-card .pc-stars {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 14px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffe07a 0%, var(--ac-gold) 100%);
+  border: 2px solid var(--ac-gold-dark);
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--ac-brown);
+  box-shadow: inset 0 -2px 0 rgba(154, 123, 0, 0.35);
+}
+
+.project-card .pc-tagline {
+  margin-top: 6px;
+  font-size: 18px;
+  line-height: 1.45;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.project-card .pc-stack {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Stack chips styled like AC recipe tags */
+.project-card .chip {
+  padding: 3px 14px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--ac-paper) 0%, var(--ac-cream-dark) 100%);
+  border: 2px solid var(--ac-line);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ac-brown);
+  box-shadow: inset 0 -2px 0 rgba(217, 205, 180, 0.3);
+}
+
+.dialog .scroll-note {
+  margin-top: 14px;
+  font-size: 16px;
+  font-weight: 700;
+  opacity: 0.65;
+  text-align: center;
+}
+
+/* Small screens: shrink the in-canvas UI source so textures stay crisp. */
+@media (max-width: 760px) {
+  .hud {
+    width: 480px;
+    font-size: 16px;
+    padding: 12px 20px;
+  }
+  .hud .hud-title {
+    font-size: 18px;
+  }
+  .clock {
+    width: 240px;
+    padding: 7px 16px;
+  }
+  .clock .clock-time {
+    font-size: 26px;
+  }
+  .clock .clock-date {
+    font-size: 13px;
+  }
+  .dialog {
+    width: 660px;
+    padding: 34px 34px 30px;
+  }
+  .dialog p {
+    font-size: 20px;
+  }
+  .dialog .dialog-aside {
+    font-size: 16px;
+  }
+  .dialog .dialog-subtitle {
+    font-size: 15px;
+  }
+  .ac-link {
+    padding: 9px 18px;
+    font-size: 18px;
+  }
+  .project-card {
+    padding: 14px 18px 14px 26px;
+  }
+  .project-card .pc-head {
+    font-size: 21px;
+  }
+}
