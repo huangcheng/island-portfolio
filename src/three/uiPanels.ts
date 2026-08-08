@@ -475,32 +475,76 @@ export class UiPanels {
     return [g, H];
   }
 
+  /** Contact panel styled as the actual wooden NOTICE BOARD — frame + cream
+   *  board + pinned notes; deliberately NOT a speech bubble. */
   private buildContact(W: number): [THREE.Group, number] {
-    const H = 2.0;
-    const g = this.dialogChrome(W, H, 'Notice Board');
+    const H = 1.86;
+    const g = new THREE.Group();
 
-    const line = makeLabel('Want to chat about a project, a job, or island life? Send word my way!', {
-      size: 0.092, color: C.body, maxWidth: W - 0.9,
+    // Soft shadow + thick wooden frame + cream board
+    const shadow = makeSoftShadow(W, H, 0.14, 0.16);
+    shadow.position.set(0.05, -0.08, -0.002);
+    g.add(shadow);
+    const frame = makePanel(W, H, 0.14, { bg: 0x9a6a3f, border: 0x6e4424, borderWidth: 0.05 });
+    g.add(frame);
+    const board = makePanel(W - 0.26, H - 0.26, 0.08, { bg: 0xf5ead2, border: 0xd9cdb4, borderWidth: 0.012 });
+    board.position.z = 0.001;
+    g.add(board);
+
+    // Wooden title plaque overlapping the frame's top edge
+    const plaque = makePanel(1.85, 0.36, 0.12, { bg: 0x7a5a36, border: 0x54331a, borderWidth: 0.018 });
+    plaque.position.set(0, H / 2 + 0.02, 0.003);
+    plaque.rotation.z = -0.012;
+    g.add(plaque);
+    const plaqueLabel = makeLabel('Notice Board', { size: 0.125, color: 0xfff2d0, font: FONT_HEAVY });
+    plaqueLabel.position.set(0, H / 2 + 0.01, 0.005);
+    g.add(plaqueLabel);
+
+    // Close button on the frame's top-right
+    const close = new UiButton({
+      w: 0.3, h: 0.3, r: 0.15, bg: C.gold, edge: C.goldEdge, label: '×', size: 0.15, color: C.heading, font: FONT_HEAVY,
+      onClick: () => this.onNavigate?.('/'),
     });
-    line.position.set(0, H / 2 - 0.5, 0.002);
-    g.add(line);
+    close.position.set(W / 2 - 0.24, H / 2 + 0.03, 0.004);
+    g.add(close);
+    this.dialogHots.push({ group: close, mesh: close.hitMesh, onClick: () => this.onNavigate?.('/'), hoverT: 0 });
 
+    // Pinned note with the message (slightly tilted, red pins)
+    const note = new THREE.Group();
+    const noteCard = makePanel(3.3, 0.68, 0.06, { bg: 0xfffdf2, border: 0xe0d6bc, borderWidth: 0.012 });
+    note.add(noteCard);
+    const msg = makeLabel('Want to chat about a project, a job, or island life?\nSend word my way!', {
+      size: 0.085, color: C.body, maxWidth: 3.0,
+    });
+    msg.position.set(0, 0, 0.002);
+    note.add(msg);
+    const pinGeo = new THREE.CircleGeometry(0.04, 12);
+    for (const px of [-1.45, 1.45]) {
+      const pin = new THREE.Mesh(pinGeo, new THREE.MeshBasicMaterial({ color: 0xe05a5a, toneMapped: false, depthTest: false, depthWrite: false, transparent: true }));
+      pin.position.set(px, 0.26, 0.003);
+      note.add(pin);
+    }
+    note.rotation.z = -0.016;
+    note.position.set(0, H / 2 - 0.66, 0.002);
+    g.add(note);
+
+    // Link buttons row
     const mk = (label: string, x: number, bg: number, edge: number, url: string, icon: THREE.Group) => {
       const b = new UiButton({
         w: 1.3, h: 0.4, bg, edge, label, size: 0.095, icon,
         onClick: () => window.open(url, '_blank', 'noopener'),
       });
-      b.position.set(x, -H / 2 + 0.64, 0.002);
+      b.position.set(x, -H / 2 + 0.62, 0.002);
       g.add(b);
       this.dialogHots.push({ group: b, mesh: b.hitMesh, onClick: () => window.open(url, '_blank', 'noopener'), hoverT: 0 });
     };
-    mk(profile.email.label, -1.55, C.orange, C.orangeEdge, profile.email.url, envelopeIcon());
+    mk(profile.email.label, -1.5, C.orange, C.orangeEdge, profile.email.url, envelopeIcon());
     mk('GitHub', 0, C.blue, C.blueEdge, profile.github.url, githubCatIcon());
-    mk(profile.blog.label, 1.55, C.green, C.greenEdge, profile.blog.url, pencilIcon());
+    mk(profile.blog.label, 1.5, C.green, C.greenEdge, profile.blog.url, pencilIcon());
 
-    const note = makeLabel('Carrier pigeon also accepted', { size: 0.068, color: C.body });
-    note.position.set(0, -H / 2 + 0.24, 0.002);
-    g.add(note);
+    const foot = makeLabel('Carrier pigeon also accepted', { size: 0.066, color: C.body });
+    foot.position.set(0, -H / 2 + 0.26, 0.002);
+    g.add(foot);
     return [g, H];
   }
 
