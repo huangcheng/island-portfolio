@@ -43,6 +43,7 @@ interface MarkerEntry {
 /**
  * Tracks proximity to interactable spots, shows floating "!" markers,
  * and emits interact intents (E key, or clicking the marker).
+ * The active scene + points can be swapped (island ↔ interiors).
  */
 export class Interactions {
   private entries: MarkerEntry[] = [];
@@ -51,9 +52,13 @@ export class Interactions {
   private _nearest: InteractPoint | null = null;
 
   onPrompt: ((text: string | null) => void) | null = null;
-  onInteract: ((route: string) => void) | null = null;
+  onInteract: ((point: InteractPoint) => void) | null = null;
 
   constructor(private scene: THREE.Scene, points: InteractPoint[]) {
+    this.build(points);
+  }
+
+  private build(points: InteractPoint[]) {
     const tex = getMarkerTexture();
     for (const point of points) {
       const sprite = new THREE.Sprite(
@@ -69,6 +74,17 @@ export class Interactions {
     }
   }
 
+  /** Swap to a different scene + point set (island ↔ interior). */
+  setScene(scene: THREE.Scene, points: InteractPoint[]) {
+    this.dispose();
+    this.scene = scene;
+    this.entries = [];
+    this.sprites = [];
+    this._nearest = null;
+    this.onPrompt?.(null);
+    this.build(points);
+  }
+
   get nearest(): InteractPoint | null {
     return this._nearest;
   }
@@ -79,22 +95,22 @@ export class Interactions {
     const visible = this.sprites.filter((s) => s.visible);
     const hit = this.raycaster.intersectObjects(visible, false)[0];
     if (hit) {
-      const id = hit.object.userData.pointId as InteractPoint['id'];
+      const id = hit.object.userData.pointId as string;
       this.interact(id);
       return true;
     }
     return false;
   }
 
-  interact(id: InteractPoint['id']) {
+  interact(id: string) {
     const entry = this.entries.find((e) => e.point.id === id);
-    if (entry) this.onInteract?.(entry.point.route);
+    if (entry) this.onInteract?.(entry.point);
   }
 
   /** Interact with the nearest point (E key). */
   interactNearest(): boolean {
     if (!this._nearest) return false;
-    this.onInteract?.(this._nearest.route);
+    this.onInteract?.(this._nearest);
     return true;
   }
 

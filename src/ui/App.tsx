@@ -40,10 +40,10 @@ export default function App() {
     engineRef.current?.setRoute(pathname);
   }, [pathname]);
 
-  // Escape returns to the island
+  // Escape closes exhibit panel / dialogs via the engine's priority chain
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') void router.navigate({ to: '/' });
+      if (e.key === 'Escape') engineRef.current?.onEscape();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

@@ -58,7 +58,7 @@ export const projects: Project[] = [
 
 /** Island locations and which route they open. */
 export const locations = {
-  about: { name: 'My House', route: '/about', hint: 'Visit my house' },
-  projects: { name: 'Museum', route: '/projects', hint: 'Browse the museum' },
+  about: { name: 'My House', route: '/about', hint: 'Enter my house' },
+  projects: { name: 'Museum', route: '/projects', hint: 'Explore the museum' },
   contact: { name: 'Notice Board', route: '/contact', hint: 'Read the notice board' },
 } as const;

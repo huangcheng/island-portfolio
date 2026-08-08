@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { locations } from '../content';
+import { locations, type Project } from '../content';
 import { addBuildings } from './buildings';
 
 export interface Collider {
@@ -9,10 +9,17 @@ export interface Collider {
 }
 
 export interface InteractPoint {
-  id: 'about' | 'projects' | 'contact';
+  id: string;
   label: string;
   hint: string;
-  route: string;
+  /** Navigate to a route (opens a route dialog). */
+  route?: string;
+  /** Enter an interior scene. */
+  enterTo?: 'house' | 'museum';
+  /** Exit the current interior back to the island. */
+  exit?: boolean;
+  /** Show the exhibit mini-panel for this project. */
+  exhibit?: Project;
   position: THREE.Vector3;
   markerY: number;
   radius: number;
@@ -1601,24 +1608,26 @@ export function buildIsland(): IslandBuild {
   group.add(cliffC, cliffB, cliffA, sand, wet, sea, grass, lip, walkSurface);
 
   // ── Interaction points (positions/radii fixed by contract) ────────────────
+  // House & museum points sit in FRONT of their doors but OUTSIDE the
+  // building colliders (otherwise the villager gets pushed out of range).
   const points: InteractPoint[] = [
     {
       id: 'about',
       label: locations.about.name,
       hint: locations.about.hint,
-      route: locations.about.route,
-      position: new THREE.Vector3(-4.6, 0, -2.1),
+      enterTo: 'house',
+      position: new THREE.Vector3(-3.63, 0, -2.35),
       markerY: 2.4,
-      radius: 2.3,
+      radius: 2.2,
     },
     {
       id: 'projects',
       label: locations.projects.name,
       hint: locations.projects.hint,
-      route: locations.projects.route,
-      position: new THREE.Vector3(4.4, 0, -2.3),
+      enterTo: 'museum',
+      position: new THREE.Vector3(3.49, 0, -2.53),
       markerY: 2.4,
-      radius: 2.3,
+      radius: 2.2,
     },
     {
       id: 'contact',

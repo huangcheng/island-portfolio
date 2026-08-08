@@ -4,6 +4,17 @@ import type { Collider } from './island';
 
 const MOVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 
+/** Walk-area bounds: island circle OR interior box. */
+export type WalkBounds =
+  | { type: 'circle'; r: number }
+  | { type: 'box'; minX: number; maxX: number; minZ: number; maxZ: number };
+
+export interface Environment {
+  walkSurface: THREE.Mesh;
+  colliders: Collider[];
+  bounds: WalkBounds;
+}
+
 /**
  * Keyboard (WASD / arrows) + pointer (click / tap-to-move) controls,
  * plus an isometric follow camera.
@@ -30,18 +41,31 @@ export class Controls {
   /** AC:NH-style low follow camera (~33° above horizon — sky stays visible). */
   private readonly camOffset = new THREE.Vector3(0, 8.6, 12.6);
 
+  private walkSurface: THREE.Mesh;
+  private colliders: Collider[];
+  private bounds: WalkBounds = { type: 'circle', r: 16.8 };
+
   constructor(
     private canvas: HTMLCanvasElement,
     private camera: THREE.PerspectiveCamera,
     private villager: Villager,
-    private walkSurface: THREE.Mesh,
-    private colliders: Collider[],
-    private bounds = 16.8,
+    env: Environment,
   ) {
+    this.walkSurface = env.walkSurface;
+    this.colliders = env.colliders;
+    this.bounds = env.bounds;
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('blur', this.onBlur);
     canvas.addEventListener('pointerdown', this.onPointerDown);
+  }
+
+  /** Swap the active environment (island ↔ interior scene). */
+  setEnvironment(env: Environment) {
+    this.walkSurface = env.walkSurface;
+    this.colliders = env.colliders;
+    this.bounds = env.bounds;
+    this.clickTarget = null;
   }
 
   dispose() {
@@ -118,7 +142,7 @@ export class Controls {
       }
     }
 
-    // Resolve collisions + island bounds
+    // Resolve collisions + walk bounds
     const p = this.villager.position;
     for (const c of this.colliders) {
       const dx = p.x - c.x;
@@ -130,10 +154,16 @@ export class Controls {
         p.z = c.z + (dz / d) * min;
       }
     }
-    const dist = Math.hypot(p.x, p.z);
-    if (dist > this.bounds) {
-      p.x = (p.x / dist) * this.bounds;
-      p.z = (p.z / dist) * this.bounds;
+    if (this.bounds.type === 'circle') {
+      const dist = Math.hypot(p.x, p.z);
+      if (dist > this.bounds.r) {
+        p.x = (p.x / dist) * this.bounds.r;
+        p.z = (p.z / dist) * this.bounds.r;
+      }
+    } else {
+      const b = this.bounds;
+      p.x = Math.min(b.maxX, Math.max(b.minX, p.x));
+      p.z = Math.min(b.maxZ, Math.max(b.minZ, p.z));
     }
 
     // Follow camera
@@ -141,6 +171,12 @@ export class Controls {
       this.camTarget.set(p.x + this.camOffset.x, this.camOffset.y, p.z + this.camOffset.z);
       const k = 1 - Math.exp(-3.4 * dt);
       this.camera.position.lerp(this.camTarget, k);
+      // Indoors (box bounds) keep the camera INSIDE the room
+      if (this.bounds.type === 'box') {
+        const b = this.bounds;
+        this.camera.position.x = Math.min(b.maxX - 0.8, Math.max(b.minX + 0.8, this.camera.position.x));
+        this.camera.position.z = Math.min(b.maxZ - 0.6, Math.max(b.minZ + 0.8, this.camera.position.z));
+      }
       if (!this.lookAtInit) {
         this.lookAt.copy(p);
         this.lookAtInit = true;

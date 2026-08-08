@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Text } from 'troika-three-text';
 import { C, FONT_BOLD, FONT_HEAVY, makeLabel, makePanel, roundedRectShape, UiButton, envelopeIcon, githubCatIcon, pencilIcon } from './uiKit';
-import { profile, projects } from '../content';
+import { profile, projects, type Project } from '../content';
 
 const _spineA = new THREE.Color();
 const _spineB = new THREE.Color();
@@ -89,6 +89,8 @@ export class UiPanels {
   private readonly PANEL_DIST = 6;
 
   onNavigate: ((to: string) => void) | null = null;
+  /** Exhibit mini-panel closed (engine uses it to restore walking). */
+  onExhibitClose: (() => void) | null = null;
 
   constructor(
     private renderer: THREE.WebGLRenderer,
@@ -208,7 +210,70 @@ export class UiPanels {
     this.layout();
   }
 
-  private dialogChrome(W: number, H: number, title: string): THREE.Group {
+  /** Exhibit mini-panel (museum frames) — independent of routes. */
+  showExhibit(p: Project | null) {
+    this.clearDialog();
+    if (!p) return;
+
+    const W = 3.9;
+    const H = 1.66;
+    const g = this.dialogChrome(W, H, p.title, () => this.onExhibitClose?.());
+
+    const tagline = makeLabel(p.tagline, {
+      size: 0.082, color: C.body, anchorX: 'left', anchorY: 'top', maxWidth: W - 0.85, align: 'left',
+    });
+    tagline.position.set(-(W / 2 - 0.42), H / 2 - 0.38, 0.002);
+    g.add(tagline);
+
+    // Star pill (drawn star + count)
+    const stars = new THREE.Group();
+    const starPill = makePanel(0.56, 0.24, 0.12, { bg: C.gold, border: C.goldEdge, borderWidth: 0.014 });
+    stars.add(starPill);
+    const star = new THREE.Mesh(
+      new THREE.ShapeGeometry(makeStarShape(0.07)),
+      new THREE.MeshBasicMaterial({ color: C.goldEdge, toneMapped: false, depthTest: false, depthWrite: false, transparent: true }),
+    );
+    star.position.set(-0.14, 0, 0.002);
+    stars.add(star);
+    const starLabel = makeLabel(String(p.stars), { size: 0.08, color: C.heading, font: FONT_HEAVY, anchorX: 'left' });
+    starLabel.position.set(-0.03, 0, 0.002);
+    stars.add(starLabel);
+    stars.position.set(-W / 2 + 0.55, -H / 2 + 0.36, 0.002);
+    g.add(stars);
+
+    // Stack chips next to the stars
+    const chips = new THREE.Group();
+    let cx = 0;
+    for (const s of p.stack) {
+      const cw = s.length * 0.042 + 0.22;
+      const chip = makePanel(cw, 0.19, 0.095, { bg: C.paperWarm, border: C.line, borderWidth: 0.012 });
+      const cl = makeLabel(s, { size: 0.058, color: C.body, font: FONT_BOLD });
+      cl.position.z = 0.002;
+      chip.add(cl);
+      chip.position.set(cx + cw / 2, 0, 0.002);
+      chips.add(chip);
+      cx += cw + 0.08;
+    }
+    chips.position.set(-W / 2 + 1.0, -H / 2 + 0.36, 0.002);
+    g.add(chips);
+
+    const gh = new UiButton({
+      w: 1.3, h: 0.38, bg: C.blue, edge: C.blueEdge, label: 'GitHub', size: 0.1,
+      onClick: () => window.open(p.repo, '_blank', 'noopener'),
+    });
+    gh.position.set(W / 2 - 0.85, -H / 2 + 0.36, 0.002);
+    g.add(gh);
+    this.dialogHots.push({ group: gh, mesh: gh.hitMesh, onClick: () => window.open(p.repo, '_blank', 'noopener'), hoverT: 0 });
+
+    g.userData.W = W;
+    g.userData.H = H;
+    this.dialogGroup = g;
+    this.root.add(g);
+    this.popT = 0;
+    this.layout();
+  }
+
+  private dialogChrome(W: number, H: number, title: string, onClose?: () => void): THREE.Group {
     const g = new THREE.Group();
     const shadow = makeSoftShadow(W, H, 0.3, 0.16);
     shadow.position.set(0.05, -0.08, -0.002);
@@ -241,11 +306,16 @@ export class UiPanels {
     // Close button
     const close = new UiButton({
       w: 0.3, h: 0.3, r: 0.15, bg: C.gold, edge: C.goldEdge, label: '×', size: 0.15, color: C.heading, font: FONT_HEAVY,
-      onClick: () => this.onNavigate?.('/'),
+      onClick: () => (onClose ? onClose() : this.onNavigate?.('/')),
     });
     close.position.set(W / 2 - 0.22, H / 2 + 0.02, 0.002);
     g.add(close);
-    this.dialogHots.push({ group: close, mesh: close.hitMesh, onClick: () => this.onNavigate?.('/'), hoverT: 0 });
+    this.dialogHots.push({
+      group: close,
+      mesh: close.hitMesh,
+      onClick: () => (onClose ? onClose() : this.onNavigate?.('/')),
+      hoverT: 0,
+    });
 
     // Faint paper-pattern accents (AC dialogs have subtle detailing)
     const sparkle = (x: number, y: number, s: number, rot: number) => {

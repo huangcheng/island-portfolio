@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { buildIsland } from './island';
+import { buildIsland, type InteractPoint, type IslandBuild } from './island';
+import { buildInterior, type InteriorBuild } from './interiors';
 import { Villager } from './villager';
 import { Controls } from './controls';
 import { Interactions } from './interactions';
@@ -119,13 +120,16 @@ function makePetalTexture(): THREE.Texture {
 }
 
 /**
- * Owns the renderer, scene, loop and every world system.
- * UI text is emitted via events so React can render it as HTML
- * (which is then drawn back into WebGL — everything ends up in canvas).
+ * Owns the renderer, scenes (island + interiors), loop and every world system.
+ * All UI is WebGL-native (troika text + mesh panels) — zero DOM.
  */
 export class Engine {
   private renderer: THREE.WebGLRenderer;
-  private scene = new THREE.Scene();
+  private scene = new THREE.Scene(); // the ISLAND scene
+  private activeScene: THREE.Scene;
+  private activeKind: 'island' | 'house' | 'museum' = 'island';
+  private interiors = new Map<'house' | 'museum', InteriorBuild>();
+  private islandReturnPos = new THREE.Vector3();
   private camera: THREE.PerspectiveCamera;
   private lastTime = 0;
   private started = false;
@@ -137,10 +141,19 @@ export class Engine {
   private controls: Controls;
   private interactions: Interactions;
   private ui: UiPanels;
-  private island;
+  private island: IslandBuild;
   /** Cached PointLight co-located with each flame, for flicker modulation. */
   private flameLights: ({ light: THREE.PointLight; base: number } | null)[] = [];
   private dirLight: THREE.DirectionalLight;
+
+  // Iris-wipe transition state (AC door animation)
+  private iris: THREE.Mesh;
+  private irisMat: THREE.ShaderMaterial;
+  private irisAspect = 16 / 9;
+  private transition: { phase: 'close' | 'open'; t: number; swap: () => void } | null = null;
+
+  dialogOpen = false;
+  exhibitOpen = false;
 
   // Atmosphere
   private sky: THREE.Mesh;
@@ -158,8 +171,6 @@ export class Engine {
   private _euler = new THREE.Euler();
 
   private listeners = new Map<string, Set<Handler>>();
-
-  dialogOpen = false;
 
   constructor(private canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -259,18 +270,56 @@ export class Engine {
 
     this.scene.add(this.petals);
 
-    this.controls = new Controls(this.canvas, this.camera, this.villager, this.island.walkSurface, this.island.colliders);
+    this.controls = new Controls(this.canvas, this.camera, this.villager, {
+      walkSurface: this.island.walkSurface,
+      colliders: this.island.colliders,
+      bounds: { type: 'circle', r: 16.8 },
+    });
     this.controls.pickInteractable = (ndc) => this.interactions.pick(ndc, this.camera);
     this.controls.snapCamera();
 
     this.interactions = new Interactions(this.scene, this.island.points);
     this.interactions.onPrompt = (text) => this.ui.setPrompt(text);
-    this.interactions.onInteract = (route) => this.emit('interact', route);
+    this.interactions.onInteract = (point) => this.handleInteract(point);
 
     this.ui = new UiPanels(this.renderer, this.camera);
     this.ui.onNavigate = (to) => this.emit('interact', to);
+    this.ui.onExhibitClose = () => {
+      this.exhibitOpen = false;
+      this.controls.inputEnabled = !this.dialogOpen;
+    };
     // UI raycast gets first claim on every click, even while a dialog is open
     this.controls.pickUi = (ndc) => this.ui.tryClick(ndc);
+
+    // ── Iris wipe (AC door transition) — camera-child fullscreen shader quad ──
+    this.irisMat = new THREE.ShaderMaterial({
+      uniforms: { uRadius: { value: 2.0 }, uAspect: { value: 16 / 9 } },
+      vertexShader: /* glsl */ `
+        varying vec2 vUv;
+        void main() {
+          vUv = position.xy;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        uniform float uRadius;
+        uniform float uAspect;
+        varying vec2 vUv;
+        void main() {
+          float d = length(vec2(vUv.x * uAspect, vUv.y));
+          if (d < uRadius) discard;
+          gl_FragColor = vec4(0.015, 0.01, 0.02, 1.0);
+        }
+      `,
+      depthTest: false,
+      depthWrite: false,
+    });
+    this.iris = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.irisMat);
+    this.iris.renderOrder = 2000;
+    this.iris.frustumCulled = false;
+    this.iris.visible = false;
+    this.camera.add(this.iris);
+    this.activeScene = this.scene;
 
     // Centre the sky on the camera before the first frame so there's no flash.
     this.sky.position.copy(this.camera.position);
@@ -328,8 +377,98 @@ export class Engine {
 
   setRoute(path: string) {
     this.dialogOpen = path !== '/';
-    this.controls.inputEnabled = !this.dialogOpen;
+    this.controls.inputEnabled = !this.dialogOpen && !this.exhibitOpen && !this.transition;
     this.ui.showRoute(path);
+  }
+
+  /** Route an interact point: exit / enter / exhibit / route-navigate. */
+  private handleInteract(point: InteractPoint) {
+    if (this.transition) return;
+    if (point.exit) {
+      this.exitInterior();
+      return;
+    }
+    if (point.enterTo) {
+      this.enterInterior(point.enterTo);
+      return;
+    }
+    if (point.exhibit) {
+      this.exhibitOpen = true;
+      this.controls.inputEnabled = false;
+      this.ui.showExhibit(point.exhibit);
+      return;
+    }
+    if (point.route) this.emit('interact', point.route);
+  }
+
+  /** Escape key: close exhibit → close route dialog → nothing. */
+  onEscape() {
+    if (this.transition) return;
+    if (this.exhibitOpen) {
+      this.ui.showExhibit(null);
+      this.exhibitOpen = false;
+      this.controls.inputEnabled = !this.dialogOpen;
+      return;
+    }
+    if (this.dialogOpen) this.emit('interact', '/');
+  }
+
+  private startSceneTransition(swap: () => void) {
+    if (this.transition) return;
+    this.transition = { phase: 'close', t: 0, swap };
+    this.iris.visible = true;
+    this.controls.inputEnabled = false;
+  }
+
+  private enterInterior(kind: 'house' | 'museum') {
+    this.islandReturnPos.copy(this.villager.position);
+    this.startSceneTransition(() => this.applyInterior(kind));
+  }
+
+  private exitInterior() {
+    if (this.activeKind === 'island') return;
+    this.startSceneTransition(() => {
+      this.scene.add(this.villager.group);
+      this.scene.add(this.camera);
+      this.activeScene = this.scene;
+      this.activeKind = 'island';
+      this.villager.position.set(this.islandReturnPos.x, 0, this.islandReturnPos.z);
+      // Face back toward the island centre
+      this.villager.heading = Math.atan2(-this.islandReturnPos.x, -this.islandReturnPos.z);
+      this.villager.group.rotation.y = this.villager.heading;
+      this.controls.setEnvironment({
+        walkSurface: this.island.walkSurface,
+        colliders: this.island.colliders,
+        bounds: { type: 'circle', r: 16.8 },
+      });
+      this.controls.snapCamera();
+      this.interactions.setScene(this.scene, this.island.points);
+    });
+  }
+
+  private applyInterior(kind: 'house' | 'museum') {
+    let build = this.interiors.get(kind);
+    if (!build) {
+      build = buildInterior(kind);
+      this.interiors.set(kind, build);
+    }
+    // Scenes own objects — add() reparents the villager + camera (which
+    // carries the UI panels + iris) into the interior scene.
+    build.scene.add(this.villager.group);
+    build.scene.add(this.camera);
+    this.activeScene = build.scene;
+    this.activeKind = kind;
+    this.villager.position.copy(build.spawn);
+    this.villager.position.y = 0;
+    this.villager.heading = Math.PI; // face into the room
+    this.villager.group.rotation.y = Math.PI;
+    this.controls.setEnvironment({
+      walkSurface: build.walkSurface,
+      colliders: build.colliders,
+      bounds: { type: 'box', ...build.bounds },
+    });
+    this.controls.snapCamera();
+    this.interactions.setScene(build.scene, build.points);
   }
 
   start() {
@@ -340,7 +479,7 @@ export class Engine {
   }
 
   private onKeyDown = (e: KeyboardEvent) => {
-    if (e.code === 'KeyE' && !this.dialogOpen) {
+    if (e.code === 'KeyE' && !this.dialogOpen && !this.exhibitOpen && !this.transition) {
       this.interactions.interactNearest();
     }
   };
@@ -352,6 +491,13 @@ export class Engine {
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h, false);
     this.ui.layout();
+    // Keep the iris quad covering the viewport
+    const halfH = 6 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
+    const halfW = halfH * this.camera.aspect;
+    this.iris.scale.set(halfW, halfH, 1);
+    this.iris.position.z = -6;
+    this.irisAspect = this.camera.aspect;
+    this.irisMat.uniforms.uAspect.value = this.camera.aspect;
   };
 
   private tick = () => {
@@ -365,113 +511,136 @@ export class Engine {
     this.villager.update(dt, moving);
     this.interactions.update(this.villager.position, this.time);
 
-    // Keep the sky centred on the camera so it reads as infinitely far away.
-    this.sky.position.copy(this.camera.position);
-    this.skyMat.uniforms.uTime.value = this.time;
-
-    // Clouds drift around the island
-    for (const c of this.island.clouds) {
-      const u = c.userData as { angle: number; radius: number; speed: number; y: number };
-      u.angle += u.speed * dt;
-      c.position.set(Math.cos(u.angle) * u.radius, u.y, Math.sin(u.angle) * u.radius);
-    }
-
-    // Seagulls orbit the island and flap (authored by a parallel agent; guard
-    // for when island.gulls is not yet present).
-    for (const g of ((this.island as any).gulls as THREE.Group[] | undefined) ?? []) {
-      const u = g.userData as {
-        angle: number;
-        radius: number;
-        speed: number;
-        y: number;
-        wingL?: THREE.Group;
-        wingR?: THREE.Group;
-        phase?: number;
-      };
-      u.angle += u.speed * dt;
-      const ph = u.phase ?? u.angle;
-      g.position.set(
-        Math.cos(u.angle) * u.radius,
-        u.y + Math.sin(this.time * 1.3 + ph) * 0.3,
-        Math.sin(u.angle) * u.radius,
-      );
-      g.rotation.y = -u.angle;
-      const flap = Math.sin(this.time * 6 + ph) * 0.5;
-      if (u.wingL) u.wingL.rotation.z = flap;
-      if (u.wingR) u.wingR.rotation.z = -flap;
-    }
-    // Sea foam breathing
-    this.island.foam.forEach((ring, i) => {
-      const s = 1 + Math.sin(this.time * 0.7 + i * 1.7) * 0.022;
-      ring.scale.set(s, s, 1);
-      (ring.material as THREE.MeshBasicMaterial).opacity = 0.4 + Math.sin(this.time * 0.7 + i * 1.7) * 0.18;
-    });
-
-    // Campfire / torch flames flicker
-    this.island.flames.forEach((f, i) => {
-      const s = 1 + Math.sin(this.time * 11 + i * 1.9) * 0.16 + Math.sin(this.time * 23 + i) * 0.06;
-      f.scale.set(1 / Math.sqrt(s), s, 1 / Math.sqrt(s)); // volume-ish preserving lick
-      f.rotation.y += dt * (2 + i * 0.3);
-      // Flicker the co-located PointLight at the same phase (±20%), so the
-      // warm glow breathes with the flame geometry.
-      const fl = this.flameLights[i];
-      if (fl) {
-        const flick = Math.sin(this.time * 11 + i * 1.9) * 0.14 + Math.sin(this.time * 23 + i) * 0.06;
-        fl.light.intensity = fl.base * (1 + flick);
+    // Iris-wipe transition animation (closes → swaps scene → opens)
+    if (this.transition) {
+      const tr = this.transition;
+      tr.t += dt * 2.6;
+      const maxR = Math.hypot(this.irisAspect, 1) * 1.06;
+      const k = Math.min(1, tr.t);
+      const e = k * k * (3 - 2 * k); // smoothstep
+      if (tr.phase === 'close') {
+        this.irisMat.uniforms.uRadius.value = maxR * (1 - e);
+        if (k >= 1) {
+          tr.swap();
+          tr.phase = 'open';
+          tr.t = 0;
+        }
+      } else {
+        this.irisMat.uniforms.uRadius.value = maxR * e;
+        if (k >= 1) {
+          this.iris.visible = false;
+          this.transition = null;
+          this.controls.inputEnabled = !this.dialogOpen && !this.exhibitOpen;
+        }
       }
-    });
-
-    // Wave crests bob + shimmer on the water
-    this.island.waves.forEach((w, i) => {
-      const ph = i * 1.37;
-      w.position.y = -1.06 + Math.sin(this.time * 1.3 + ph) * 0.045;
-      (w.material as THREE.MeshBasicMaterial).opacity = 0.26 + 0.2 * (0.5 + 0.5 * Math.sin(this.time * 0.8 + ph * 2.3));
-    });
-
-    // Water shader time
-    (this.island.sea.material as THREE.ShaderMaterial).uniforms.uTime.value = this.time;
-
-    // Butterflies: lissajous wander around their flower bed + wing flap
-    this.island.butterflies.forEach((b) => {
-      const t = this.time * 1 + b.phase;
-      const vx = Math.cos(t * 0.5) * 0.65;
-      const vz = -Math.sin(t * 0.37) * 0.48;
-      b.group.position.set(
-        b.anchor.x + Math.sin(t * 0.5) * 1.3,
-        0.95 + Math.sin(t * 1.4) * 0.28,
-        b.anchor.z + Math.cos(t * 0.37) * 1.3,
-      );
-      b.group.rotation.y = Math.atan2(vx, vz);
-      const flap = Math.sin(t * 15) * 0.95;
-      b.wingL.rotation.z = flap;
-      b.wingR.rotation.z = -flap;
-    });
-
-    // Floating petals: sinusoidal sway + slow downward drift that wraps through
-    // a vertical band, with a gentle tumble so they flutter like leaves.
-    const t = this.time;
-    for (let i = 0; i < this.petalData.length; i++) {
-      const d = this.petalData[i];
-      const x = d.bx + Math.sin(t * d.swaySpd + d.phase) * d.sway;
-      const z = d.bz + Math.cos(t * d.swaySpd * 0.9 + d.phase * 1.3) * d.sway;
-      const progress = (t * d.fall + d.phase * 2.1) % PETAL_RANGE;
-      const y = PETAL_TOP - progress;
-      this._v3.set(x, y, z);
-      this._euler.set(d.tumble + t * d.tumbleSpd, d.phase + t * d.tumbleSpd * 0.6, Math.sin(t * 0.8 + d.phase) * 0.5, 'XYZ');
-      this._q.setFromEuler(this._euler);
-      const sc = i % 2 === 0 ? 1.0 : 1.35;
-      this._scale.set(sc, sc, sc);
-      this._m4.compose(this._v3, this._q, this._scale);
-      this.petals.setMatrixAt(i, this._m4);
     }
-    this.petals.instanceMatrix.needsUpdate = true;
 
-    // Keep the shadow box centred on the villager
-    this.dirLight.position.set(this.villager.position.x + SUN_OFFSET.x, SUN_OFFSET.y, this.villager.position.z + SUN_OFFSET.z);
-    this.dirLight.target.position.copy(this.villager.position);
+    // Island-only world systems (frozen while inside interiors)
+    if (this.activeKind === 'island') {
+      // Keep the sky centred on the camera so it reads as infinitely far away.
+      this.sky.position.copy(this.camera.position);
+      this.skyMat.uniforms.uTime.value = this.time;
+
+      // Clouds drift around the island
+      for (const c of this.island.clouds) {
+        const u = c.userData as { angle: number; radius: number; speed: number; y: number };
+        u.angle += u.speed * dt;
+        c.position.set(Math.cos(u.angle) * u.radius, u.y, Math.sin(u.angle) * u.radius);
+      }
+
+      // Seagulls orbit the island and flap
+      for (const g of ((this.island as { gulls?: THREE.Group[] }).gulls ?? [])) {
+        const u = g.userData as {
+          angle: number;
+          radius: number;
+          speed: number;
+          y: number;
+          wingL?: THREE.Group;
+          wingR?: THREE.Group;
+          phase?: number;
+        };
+        u.angle += u.speed * dt;
+        const ph = u.phase ?? u.angle;
+        g.position.set(
+          Math.cos(u.angle) * u.radius,
+          u.y + Math.sin(this.time * 1.3 + ph) * 0.3,
+          Math.sin(u.angle) * u.radius,
+        );
+        g.rotation.y = -u.angle;
+        const flap = Math.sin(this.time * 6 + ph) * 0.5;
+        if (u.wingL) u.wingL.rotation.z = flap;
+        if (u.wingR) u.wingR.rotation.z = -flap;
+      }
+      // Sea foam breathing
+      this.island.foam.forEach((ring, i) => {
+        const s = 1 + Math.sin(this.time * 0.7 + i * 1.7) * 0.022;
+        ring.scale.set(s, s, 1);
+        (ring.material as THREE.MeshBasicMaterial).opacity = 0.4 + Math.sin(this.time * 0.7 + i * 1.7) * 0.18;
+      });
+
+      // Campfire / torch flames flicker
+      this.island.flames.forEach((f, i) => {
+        const s = 1 + Math.sin(this.time * 11 + i * 1.9) * 0.16 + Math.sin(this.time * 23 + i) * 0.06;
+        f.scale.set(1 / Math.sqrt(s), s, 1 / Math.sqrt(s)); // volume-ish preserving lick
+        f.rotation.y += dt * (2 + i * 0.3);
+        const fl = this.flameLights[i];
+        if (fl) {
+          const flick = Math.sin(this.time * 11 + i * 1.9) * 0.14 + Math.sin(this.time * 23 + i) * 0.06;
+          fl.light.intensity = fl.base * (1 + flick);
+        }
+      });
+
+      // Wave crests bob + shimmer on the water
+      this.island.waves.forEach((w, i) => {
+        const ph = i * 1.37;
+        w.position.y = -1.06 + Math.sin(this.time * 1.3 + ph) * 0.045;
+        (w.material as THREE.MeshBasicMaterial).opacity = 0.26 + 0.2 * (0.5 + 0.5 * Math.sin(this.time * 0.8 + ph * 2.3));
+      });
+
+      // Water shader time
+      (this.island.sea.material as THREE.ShaderMaterial).uniforms.uTime.value = this.time;
+
+      // Butterflies: lissajous wander around their flower bed + wing flap
+      this.island.butterflies.forEach((b) => {
+        const t = this.time * 1 + b.phase;
+        const vx = Math.cos(t * 0.5) * 0.65;
+        const vz = -Math.sin(t * 0.37) * 0.48;
+        b.group.position.set(
+          b.anchor.x + Math.sin(t * 0.5) * 1.3,
+          0.95 + Math.sin(t * 1.4) * 0.28,
+          b.anchor.z + Math.cos(t * 0.37) * 1.3,
+        );
+        b.group.rotation.y = Math.atan2(vx, vz);
+        const flap = Math.sin(t * 15) * 0.95;
+        b.wingL.rotation.z = flap;
+        b.wingR.rotation.z = -flap;
+      });
+
+      // Floating petals: sinusoidal sway + slow downward drift that wraps
+      const t = this.time;
+      for (let i = 0; i < this.petalData.length; i++) {
+        const d = this.petalData[i];
+        const x = d.bx + Math.sin(t * d.swaySpd + d.phase) * d.sway;
+        const z = d.bz + Math.cos(t * d.swaySpd * 0.9 + d.phase * 1.3) * d.sway;
+        const progress = (t * d.fall + d.phase * 2.1) % PETAL_RANGE;
+        const y = PETAL_TOP - progress;
+        this._v3.set(x, y, z);
+        this._euler.set(d.tumble + t * d.tumbleSpd, d.phase + t * d.tumbleSpd * 0.6, Math.sin(t * 0.8 + d.phase) * 0.5, 'XYZ');
+        this._q.setFromEuler(this._euler);
+        const sc = i % 2 === 0 ? 1.0 : 1.35;
+        this._scale.set(sc, sc, sc);
+        this._m4.compose(this._v3, this._q, this._scale);
+        this.petals.setMatrixAt(i, this._m4);
+      }
+      this.petals.instanceMatrix.needsUpdate = true;
+
+      // Keep the shadow box centred on the villager
+      this.dirLight.position.set(this.villager.position.x + SUN_OFFSET.x, SUN_OFFSET.y, this.villager.position.z + SUN_OFFSET.z);
+      this.dirLight.target.position.copy(this.villager.position);
+    }
 
     this.ui.update(dt);
-    this.renderer.render(this.scene, this.camera);
+    this.renderer.render(this.activeScene, this.camera);
 
     this.frames++;
     if (this.frames === 3) this.emit('ready');

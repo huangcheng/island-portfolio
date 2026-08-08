@@ -36,21 +36,30 @@ src/
   styles.css        # page chrome only
   types/troika-three-text.d.ts  # Text-extends-Mesh typing fix (REQUIRED)
   three/
-    engine.ts       # renderer/scene/loop; events: ready/interact; setRoute(path)
-    island.ts       # terrain, sea shader, vegetation, paths, props, colliders
+    engine.ts       # renderer/scenes/loop; scene swap + iris wipe; setRoute;
+                    #   onEscape; events: ready/interact
+    island.ts       # terrain, sea shader, vegetation, paths, props, colliders,
+                    #   InteractPoint (route | enterTo | exit | exhibit actions)
+    interiors.ts    # house + museum interior scenes (buildInterior contract)
     buildings.ts    # house / museum / notice board / signs / lamps
     villager.ts     # panda villager (primitives), walk/idle anim, blinks, tail
-    controls.ts     # WASD + click-to-move, follow camera, collision/bounds
-    interactions.ts # proximity, "!" markers, E-key / marker-click interact
-    uiKit.ts        # rounded-rect panels, troika labels, UiButton, AC palette
-    uiPanels.ts     # HUD / clock / dialog builders, raycast hits, typewriter
+    controls.ts     # WASD + click-to-move, follow camera, Environment swap
+                    #   (circle bounds island / box bounds + camera clamp interiors)
+    interactions.ts # proximity, "!" markers, E-key / marker-click; setScene swap
+    uiKit.ts        # rounded-rect panels, troika labels, UiButton, icons, palette
+    uiPanels.ts     # HUD / clock / route dialogs / exhibit mini-panel
   ui/
     App.tsx         # canvas + veil only; watches pathname → engine.setRoute
 ```
 
-Key flow: route change → `App` → `engine.setRoute(path)` → `ui.showRoute(path)`
-builds the dialog mesh tree. `Engine` emits `interact(route)` (marker click /
-E key / dialog ✕) → `App` navigates.
+Key flows:
+- Route change → `App` → `engine.setRoute(path)` → `ui.showRoute(path)`.
+- `Engine` emits `interact(route)` (marker click / E key / dialog ✕) → `App` navigates.
+- InteractPoint actions: `route` → navigate; `enterTo` → iris wipe into an
+  interior scene; `exit` → iris wipe back to the island (return pos saved);
+  `exhibit` → museum mini detail panel (no route change).
+- Scenes: villager + camera (which carries the UI panels + iris quad) are
+  reparented into the active scene; island world systems freeze indoors.
 
 ## Gotchas (hard-won, keep them working)
 
@@ -71,6 +80,9 @@ E key / dialog ✕) → `App` navigates.
    `frustumCulled` irrelevant as they're camera children.
 7. Keep `window.__engine` in App.tsx — the Playwright verification scripts
    drive the scene through it.
+8. **Door interact points must sit OUTSIDE building colliders** (plus body
+   radius 0.42) — a point inside a collider gets the villager pushed out of
+   the point's radius before E registers (museum entry failed this way).
 
 ## Conventions
 
