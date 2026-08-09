@@ -183,8 +183,38 @@ try {
   await page.waitForTimeout(1200);
   check('flight board opens', await eng(() => window.__engine.boardOpen === true));
   await page.screenshot({ path: `${SHOTS}/flight-board.png` });
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(400);
+
+  // Click the first ONLINE flight row (hots[1]; hots[0] is the ✕) → flyby + navigate.
+  // Retry a few times — a click can land mid-pop-in and miss the row.
+  let flew = false;
+  let tries = 0;
+  for (let attempt = 1; attempt <= 3 && !flew; attempt++) {
+    tries = attempt;
+    const rowPos = await eng(() => {
+      const e = window.__engine;
+      const hot = e.ui.dialogHots[1];
+      const V = e.camera.position.constructor;
+      const v = new V();
+      hot.mesh.getWorldPosition(v);
+      v.project(e.camera);
+      return { x: (v.x * 0.5 + 0.5) * innerWidth, y: (-v.y * 0.5 + 0.5) * innerHeight };
+    });
+    await page.mouse.click(rowPos.x, rowPos.y);
+    await page.waitForTimeout(400);
+    flew = await eng(() => !!window.__engine.transition).catch(() => true); // true if context died = navigating
+  }
+  if (tries > 1) console.log(`  (flight click needed ${tries} tries)`);
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${SHOTS}/flyby.png` }).catch(() => {});
+  await page.waitForTimeout(2500);
+  let nav = null;
+  try {
+    nav = page.url();
+  } catch { /* context mid-navigation */ }
+  check(`external island navigation fired (${nav})`, flew && typeof nav === 'string' && /cheng\.sh|misthois\.cn|kleos\.cn|chrome-error/.test(nav));
+  // We navigated away — go back to the island for any later checks
+  await page.goto(BASE + '/', { waitUntil: 'load' }).catch(() => {});
+  await page.waitForTimeout(1000);
 
   // ── 5. Day/night lerp ───────────────────────────────────────────────────
   console.log('\n[5] day/night palette lerps with the clock');
