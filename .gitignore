@@ -5,3 +5,5 @@ dist-ssr
 .DS_Store
 
 dev-server.log
+
+preview-*.log
