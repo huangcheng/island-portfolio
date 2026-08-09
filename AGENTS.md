@@ -24,7 +24,17 @@ tags in `index.html`.
 pnpm dev        # dev server :5173
 pnpm build      # tsc --noEmit && vite build
 pnpm typecheck
+pnpm test:e2e   # Playwright suite (scripts/verify.mjs) — needs dist/ first
+pnpm verify     # build + e2e in one go
 ```
+
+## Testing
+
+`scripts/verify.mjs` serves `dist/` via vite preview and checks: all routes
+zero-console-error, walk/E/enter/exit interiors, exhibit placard open/close,
+pier walk + flight board, day/night lerp. Screenshots land in `test-shots/`.
+Browser: system Chrome → bundled chromium → ms-playwright fallback (all with
+timeouts; a 150s watchdog prevents hangs).
 
 ## Architecture
 

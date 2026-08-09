@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "node scripts/verify.mjs",
+    "verify": "pnpm build && pnpm test:e2e"
   },
   "dependencies": {
     "@tanstack/react-router": "^1.170.22",
@@ -21,6 +23,7 @@
     "@types/react-dom": "^19.2.4",
     "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "^6.0.5",
+    "playwright": "^1.62.1",
     "typescript": "~5.9.3",
     "vite": "^8.2.1"
   }
