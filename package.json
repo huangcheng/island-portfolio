@@ -9,7 +9,12 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test:e2e": "node scripts/verify.mjs",
-    "verify": "pnpm build && pnpm test:e2e"
+    "verify": "pnpm build && pnpm test:e2e",
+    "build:chengim": "vite build --mode chengim --outDir dist/chengim --emptyOutDir",
+    "build:chengsh": "vite build --mode chengsh --outDir dist/chengsh --emptyOutDir",
+    "build:misthois": "vite build --mode misthois --outDir dist/misthois --emptyOutDir",
+    "build:kleos": "vite build --mode kleos --outDir dist/kleos --emptyOutDir",
+    "islands": "pnpm build:chengim && pnpm build:chengsh && pnpm build:misthois && pnpm build:kleos"
   },
   "dependencies": {
     "@tanstack/react-router": "^1.170.22",

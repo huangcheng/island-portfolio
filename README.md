@@ -35,9 +35,32 @@ portfolio in AC-style dialog bubbles built from three.js meshes + SDF text.
 ```bash
 pnpm install
 pnpm dev        # http://localhost:5173
-pnpm build      # typecheck + production build
-pnpm preview
+pnpm build      # typecheck + production build (main island → dist/)
+pnpm verify     # build + Playwright e2e suite
 ```
+
+## Deployment (the islandverse)
+
+Each island is the same app with a different identity selected by `VITE_SITE`
+(name, native fruit, house roof color, greeting):
+
+```bash
+pnpm islands            # builds ALL islands into dist/<id>/ (chengim, chengsh, misthois, kleos)
+pnpm build:chengsh      # …or one at a time
+```
+
+Then deploy `dist/<id>` to its host, e.g.:
+
+```bash
+rsync -avz --delete dist/chengim/   vultr:/var/www/cheng.im/
+rsync -avz --delete dist/chengsh/   contabo:/var/www/cheng.sh/
+rsync -avz --delete dist/misthois/  tencent:/var/www/misthois.cn/
+rsync -avz --delete dist/kleos/     jdcloud:/var/www/kleos.cn/
+```
+
+Island registry / identities live in **`src/site.ts`** — edit names, fruits,
+roof colors and greetings there. (noveo.cn stays DELAYED on the flight board
+until its review finishes.)
 
 ## Editing content
 

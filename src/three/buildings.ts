@@ -1,6 +1,23 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import type { Collider } from './island';
+import { SITE } from '../site';
+
+/** Multiply an sRGB hex color by a factor (for roof light/shade variants). */
+function shadeOf(hex: number, f: number): number {
+  const r = Math.min(255, Math.round(((hex >> 16) & 0xff) * f));
+  const g = Math.min(255, Math.round(((hex >> 8) & 0xff) * f));
+  const b = Math.min(255, Math.round((hex & 0xff) * f));
+  return (r << 16) | (g << 8) | b;
+}
+
+/** House roof palette — themed per island via SITE.roof. */
+const ROOF = {
+  base: SITE.roof,
+  light: shadeOf(SITE.roof, 1.12),
+  deep: shadeOf(SITE.roof, 0.62),
+  shade: shadeOf(SITE.roof, 0.74),
+};
 
 // ============================================================================
 // Palette & shared materials
@@ -77,8 +94,10 @@ const M = {
   doorDark: std(COL.doorDark, 0.85),
   brown: std(COL.brown, 0.9),
   brownLight: std(COL.brownLight, 0.9),
-  leaf: std(COL.leaf, 0.8),
-};
+  leaf: std(COL.leaf, 0.8),};
+
+/** House roof shade material — per-island (SITE.roof). */
+const roofShadeMat = std(ROOF.shade, 0.85);
 
 function glassMat(): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
@@ -419,8 +438,8 @@ function makeHouse(): THREE.Group {
   gableBack.position.set(0, wallTop, -D / 2 - 0.12);
   gableBack.rotation.y = Math.PI;
 
-  // Two sloped roof panels with scalloped red shingles.
-  const roofTex = makeTex(shingleCanvas(COL.red, 0xee6f64, COL.redDeep), 6, 4, true);
+  // Two sloped roof panels with scalloped shingles (per-island SITE.roof).
+  const roofTex = makeTex(shingleCanvas(ROOF.base, ROOF.light, ROOF.deep), 6, 4, true);
   const roofMat = new THREE.MeshStandardMaterial({ map: roofTex, roughness: 0.85, metalness: 0 });
   const panelGeo = new THREE.BoxGeometry(slopeLen, 0.14, D + overZ * 2);
   const roofPx = shadowed(new THREE.Mesh(panelGeo, roofMat), true, true);
@@ -432,7 +451,7 @@ function makeHouse(): THREE.Group {
 
   // Ridge cap (rounded box along the apex)
   const ridge = shadowed(
-    new THREE.Mesh(rbox(0.22, 0.16, D + overZ * 2 + 0.12, 0.06), M.redShade),
+    new THREE.Mesh(rbox(0.22, 0.16, D + overZ * 2 + 0.12, 0.06), roofShadeMat),
     true,
     false,
   );
@@ -530,7 +549,7 @@ function makeHouse(): THREE.Group {
 
   // --- Chimney with cap ---
   const chimY = wallTop + 0.5;
-  const chimney = shadowed(new THREE.Mesh(rbox(0.5, 1.0, 0.5, 0.06), M.redShade), true, true);
+  const chimney = shadowed(new THREE.Mesh(rbox(0.5, 1.0, 0.5, 0.06), roofShadeMat), true, true);
   chimney.position.set(-1.1, chimY, -0.55);
   const chimCap = shadowed(new THREE.Mesh(rbox(0.6, 0.14, 0.6, 0.04), M.cream), true, true);
   chimCap.position.set(-1.1, chimY + 0.57, -0.55);
@@ -584,7 +603,7 @@ function makeHouse(): THREE.Group {
   ];
 
   // --- Welcome mat at doorstep ---
-  const mat = shadowed(new THREE.Mesh(rbox(0.9, 0.04, 0.45, 0.02), M.redShade), true, true);
+  const mat = shadowed(new THREE.Mesh(rbox(0.9, 0.04, 0.45, 0.02), roofShadeMat), true, true);
   mat.position.set(0, 0.02, D / 2 + 0.6);
 
   g.add(

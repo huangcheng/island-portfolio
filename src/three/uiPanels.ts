@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Text } from 'troika-three-text';
 import { C, FONT_BOLD, FONT_HEAVY, makeIconMesh, makeLabel, makePanel, roundedRectShape, UiButton } from './uiKit';
 import { profile, projects, type Project } from '../content';
-import type { SisterIsland } from '../site';
+import { SITE, type SisterIsland } from '../site';
 
 const _spineA = new THREE.Color();
 const _spineB = new THREE.Color();
@@ -46,7 +46,7 @@ function makeSoftShadow(w: number, h: number, r: number, opacity = 0.16): THREE.
 
 /** Route titles shown in the HUD pill. */
 const TITLES: Record<string, string> = {
-  '/': 'Home Square',
+  '/': SITE.name, // the island this build serves
   '/about': 'My House',
   '/projects': 'Museum',
   '/contact': 'Notice Board',
@@ -487,7 +487,7 @@ export class UiPanels {
     });
     typeLabel.position.set(-(W / 2 - 0.42), H / 2 - 0.36, 0.002);
     g.add(typeLabel);
-    this.typeTarget = { label: typeLabel, full: profile.greeting, count: 0 };
+    this.typeTarget = { label: typeLabel, full: SITE.greeting, count: 0 };
 
     const role = makeLabel(`${profile.role} · this island + UI are 100% WebGL`, {
       size: 0.075, color: C.teal, font: FONT_BOLD,
