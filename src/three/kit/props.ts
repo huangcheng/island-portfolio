@@ -279,6 +279,77 @@ export function makeBeachTowel(): THREE.Mesh {
   return towel;
 }
 
+/** Single bamboo stalk with leaf tufts — add to island.sway for gentle rocking. */
+export function makeBamboo(rng: () => number): THREE.Group {
+  const g = new THREE.Group();
+  const h = 3.2 + rng() * 1.6;
+  const stalk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.07, 0.09, h, 7),
+    std(rng() > 0.5 ? 0x3e8e5f : 0x4ba06c, 0.7),
+  );
+  stalk.position.y = h / 2;
+  g.add(stalk);
+  // node rings
+  for (let y = 0.8; y < h - 0.3; y += 0.8) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.085, 0.018, 6, 10), std(0x2c6e4b, 0.7));
+    ring.rotation.x = Math.PI / 2; ring.position.y = y; g.add(ring);
+  }
+  for (let i = 0; i < 3; i++) {
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6), std(0x5cb87a, 0.8));
+    leaf.scale.set(1.6, 0.35, 0.7);
+    leaf.position.set((rng() - 0.5) * 0.9, h - 0.2 - i * 0.35, (rng() - 0.5) * 0.9);
+    leaf.rotation.y = rng() * Math.PI;
+    g.add(leaf);
+  }
+  g.userData.phase = rng() * Math.PI * 2;
+  g.traverse((o) => { if (o instanceof THREE.Mesh) shadowed(o); });
+  return g;
+}
+
+/** Stone lantern (toro) — soft glow at night. */
+export function makeStoneLantern(): THREE.Group {
+  const g = new THREE.Group();
+  const stone = std(0x9aa0a4, 0.95);
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.16, 0.5), stone);
+  base.position.y = 0.08;
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.6, 8), stone);
+  post.position.y = 0.46;
+  const box = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.3, 0.34),
+    new THREE.MeshStandardMaterial({ color: 0xd8cdb5, emissive: 0xffe9a8, emissiveIntensity: 0.7, roughness: 0.8 }));
+  box.position.y = 0.92;
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.24, 4), stone);
+  cap.position.y = 1.2; cap.rotation.y = Math.PI / 4;
+  const light = new THREE.PointLight(0xffe9a8, 2.6, 5, 1.8);
+  light.position.y = 0.95;
+  g.add(base, post, box, cap, light);
+  g.traverse((o) => { if (o instanceof THREE.Mesh) shadowed(o); });
+  return g;
+}
+
+/** Engraved stone tablet — Latin digits only. */
+export function makeStoneTablet(text: string): THREE.Group {
+  const g = new THREE.Group();
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.5, 0.22), std(0x8b8f94, 0.9));
+  slab.position.y = 0.75;
+  const foot = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.22, 0.5), std(0x7a7e82, 0.95));
+  foot.position.y = 0.11;
+  g.add(slab, foot);
+  // engraved face: canvas texture with big glyphs
+  const c = document.createElement('canvas'); c.width = 128; c.height = 176;
+  const ctx = c.getContext('2d')!;
+  ctx.fillStyle = '#8b8f94'; ctx.fillRect(0, 0, 128, 176);
+  ctx.fillStyle = '#5e6266'; ctx.font = 'bold 84px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, 64, 92);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(0.96, 1.36),
+    new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 }));
+  face.position.set(0, 0.78, 0.115);
+  g.add(face);
+  g.traverse((o) => { if (o instanceof THREE.Mesh) shadowed(o); });
+  return g;
+}
+
 // ── Organic winding path of overlapping flattened blobs ─────────────────────
 export function placePath(
   group: THREE.Group,
