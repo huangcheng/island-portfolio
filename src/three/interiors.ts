@@ -7,7 +7,7 @@
  */
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import type { Collider, InteractPoint } from './island';
+import type { Collider, InteractPoint } from './kit/types';
 import { exhibits, type Exhibit } from '../content';
 
 export interface InteriorBuild {

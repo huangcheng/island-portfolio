@@ -1,7 +1,5 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import type { Collider } from './island';
-import { SITE } from '../site';
 
 /** Multiply an sRGB hex color by a factor (for roof light/shade variants). */
 function shadeOf(hex: number, f: number): number {
@@ -11,13 +9,46 @@ function shadeOf(hex: number, f: number): number {
   return (r << 16) | (g << 8) | b;
 }
 
-/** House roof palette — themed per island via SITE.roof. */
-const ROOF = {
-  base: SITE.roof,
-  light: shadeOf(SITE.roof, 1.12),
-  deep: shadeOf(SITE.roof, 0.62),
-  shade: shadeOf(SITE.roof, 0.74),
-};
+export interface BuildingTheme {
+  roof: number;
+  door: number;
+  museumRoof: number;
+  museumWall: number;
+  /** Explicit triplet overrides (bypass shadeOf derivation) so a legacy
+   *  palette can be reproduced exactly. */
+  doorDark?: number;
+  doorHi?: number;
+  museumRoofLight?: number;
+  museumRoofDeep?: number;
+}
+
+/** House roof palette — themed per island via setBuildingTheme. */
+let ROOF = { base: 0xe2574c, light: 0, deep: 0, shade: 0 };
+let DOOR = { dark: 0x5a3f22, mid: 0x7a5326, hi: 0x9c6f3a };
+let MUSEUM = { roof: 0x4f86c6, roofLight: 0x6fa0d8, roofDeep: 0x2f527f, wall: 0xffeed0 };
+
+export function setBuildingTheme(t: BuildingTheme): void {
+  ROOF = { base: t.roof, light: shadeOf(t.roof, 1.12), deep: shadeOf(t.roof, 0.62), shade: shadeOf(t.roof, 0.74) };
+  DOOR = { dark: t.doorDark ?? shadeOf(t.door, 0.85), mid: t.door, hi: t.doorHi ?? shadeOf(t.door, 1.28) };
+  MUSEUM = {
+    roof: t.museumRoof,
+    roofLight: t.museumRoofLight ?? shadeOf(t.museumRoof, 1.32),
+    roofDeep: t.museumRoofDeep ?? shadeOf(t.museumRoof, 0.64),
+    wall: t.museumWall,
+  };
+}
+
+// Home defaults = the legacy hardcoded palette (exact, not derived).
+setBuildingTheme({
+  roof: 0xe2574c,
+  door: 0x7a5326,
+  doorDark: 0x5a3f22,
+  doorHi: 0x9c6f3a,
+  museumRoof: 0x4f86c6,
+  museumRoofLight: 0x6fa0d8,
+  museumRoofDeep: 0x2f527f,
+  museumWall: 0xffeed0,
+});
 
 // ============================================================================
 // Palette & shared materials
@@ -49,9 +80,6 @@ const COL = {
   pink: 0xff7fa8,
   yellow: 0xffd94d,
   leaf: 0x6fbf5b,
-  doorDark: 0x5a3f22,
-  doorMid: 0x7a5326,
-  doorHi: 0x9c6f3a,
   beak: 0xe89a3c,
   pupil: 0x20140a,
   brown: 0x8a5a33,
@@ -91,13 +119,14 @@ const M = {
   navyLight: std(COL.navyLight, 0.7),
   stone: std(COL.stone, 0.95),
   stoneDark: std(COL.stoneDark, 0.95),
-  doorDark: std(COL.doorDark, 0.85),
+  doorDark: std(0x5a3f22, 0.85),
   brown: std(COL.brown, 0.9),
   brownLight: std(COL.brownLight, 0.9),
-  leaf: std(COL.leaf, 0.8),};
+  leaf: std(COL.leaf, 0.8),
+};
 
-/** House roof shade material — per-island (SITE.roof). */
-const roofShadeMat = std(ROOF.shade, 0.85);
+/** House roof shade material — per-island (setBuildingTheme), built at use. */
+const roofShadeMat = () => std(ROOF.shade, 0.85);
 
 function glassMat(): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
@@ -206,7 +235,7 @@ function doorCanvas(double: boolean): HTMLCanvasElement {
   const H = 300;
   const c = cv(W, H);
   const ctx = c.getContext('2d')!;
-  ctx.fillStyle = hex(COL.doorDark);
+  ctx.fillStyle = hex(DOOR.dark);
   ctx.fillRect(0, 0, W, H);
   const cols = double ? 2 : 1;
   const cw = W / cols;
@@ -219,16 +248,16 @@ function doorCanvas(double: boolean): HTMLCanvasElement {
     const lp1 = { x: ox + pad, y: 132, w: cw - pad * 2, h: 66 };
     const lp2 = { x: ox + pad, y: 210, w: cw - pad * 2, h: 66 };
     for (const p of [lp1, lp2]) {
-      ctx.fillStyle = hex(COL.doorMid);
+      ctx.fillStyle = hex(DOOR.mid);
       ctx.fillRect(p.x, p.y, p.w, p.h);
-      ctx.strokeStyle = hex(COL.doorHi);
+      ctx.strokeStyle = hex(DOOR.hi);
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(p.x, p.y + p.h);
       ctx.lineTo(p.x, p.y);
       ctx.lineTo(p.x + p.w, p.y);
       ctx.stroke();
-      ctx.strokeStyle = hex(COL.doorDark);
+      ctx.strokeStyle = hex(DOOR.dark);
       ctx.beginPath();
       ctx.moveTo(p.x + p.w, p.y);
       ctx.lineTo(p.x + p.w, p.y + p.h);
@@ -239,9 +268,9 @@ function doorCanvas(double: boolean): HTMLCanvasElement {
     const cxp = ox + cw / 2;
     const cyp = up.y + up.h / 2;
     const rr = 30;
-    ctx.fillStyle = hex(COL.doorMid);
+    ctx.fillStyle = hex(DOOR.mid);
     ctx.fillRect(up.x, up.y, up.w, up.h);
-    ctx.strokeStyle = hex(COL.doorHi);
+    ctx.strokeStyle = hex(DOOR.hi);
     ctx.lineWidth = 3;
     ctx.strokeRect(up.x, up.y, up.w, up.h);
     ctx.fillStyle = '#ffffff';
@@ -263,7 +292,7 @@ function doorCanvas(double: boolean): HTMLCanvasElement {
   }
   // center seam for double door
   if (double) {
-    ctx.strokeStyle = hex(COL.doorDark);
+    ctx.strokeStyle = hex(DOOR.dark);
     ctx.lineWidth = 4;
     ctx.beginPath();
     ctx.moveTo(W / 2, 10);
@@ -359,7 +388,7 @@ function signCanvas(text: string): HTMLCanvasElement {
   ctx.beginPath();
   ctx.roundRect(12, 12, W - 24, H - 24, 16);
   ctx.fill();
-  ctx.fillStyle = hex(COL.doorDark);
+  ctx.fillStyle = hex(DOOR.dark);
   ctx.font = '800 58px "Baloo 2", "Arial Rounded MT Bold", sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -400,7 +429,7 @@ function inscriptionCanvas(text: string): HTMLCanvasElement {
 // HOUSE  ("About" building)
 // ============================================================================
 
-function makeHouse(): THREE.Group {
+export function makeHouse(): THREE.Group {
   const g = new THREE.Group();
   const W = 4;
   const D = 3.1;
@@ -438,7 +467,7 @@ function makeHouse(): THREE.Group {
   gableBack.position.set(0, wallTop, -D / 2 - 0.12);
   gableBack.rotation.y = Math.PI;
 
-  // Two sloped roof panels with scalloped shingles (per-island SITE.roof).
+  // Two sloped roof panels with scalloped shingles (per-island theme).
   const roofTex = makeTex(shingleCanvas(ROOF.base, ROOF.light, ROOF.deep), 6, 4, true);
   const roofMat = new THREE.MeshStandardMaterial({ map: roofTex, roughness: 0.85, metalness: 0 });
   const panelGeo = new THREE.BoxGeometry(slopeLen, 0.14, D + overZ * 2);
@@ -451,7 +480,7 @@ function makeHouse(): THREE.Group {
 
   // Ridge cap (rounded box along the apex)
   const ridge = shadowed(
-    new THREE.Mesh(rbox(0.22, 0.16, D + overZ * 2 + 0.12, 0.06), roofShadeMat),
+    new THREE.Mesh(rbox(0.22, 0.16, D + overZ * 2 + 0.12, 0.06), roofShadeMat()),
     true,
     false,
   );
@@ -549,7 +578,7 @@ function makeHouse(): THREE.Group {
 
   // --- Chimney with cap ---
   const chimY = wallTop + 0.5;
-  const chimney = shadowed(new THREE.Mesh(rbox(0.5, 1.0, 0.5, 0.06), roofShadeMat), true, true);
+  const chimney = shadowed(new THREE.Mesh(rbox(0.5, 1.0, 0.5, 0.06), roofShadeMat()), true, true);
   chimney.position.set(-1.1, chimY, -0.55);
   const chimCap = shadowed(new THREE.Mesh(rbox(0.6, 0.14, 0.6, 0.04), M.cream), true, true);
   chimCap.position.set(-1.1, chimY + 0.57, -0.55);
@@ -603,7 +632,7 @@ function makeHouse(): THREE.Group {
   ];
 
   // --- Welcome mat at doorstep ---
-  const mat = shadowed(new THREE.Mesh(rbox(0.9, 0.04, 0.45, 0.02), roofShadeMat), true, true);
+  const mat = shadowed(new THREE.Mesh(rbox(0.9, 0.04, 0.45, 0.02), roofShadeMat()), true, true);
   mat.position.set(0, 0.02, D / 2 + 0.6);
 
   g.add(
@@ -637,7 +666,7 @@ function makeHouse(): THREE.Group {
 // MUSEUM  ("Projects" building)
 // ============================================================================
 
-function makeOwl(): THREE.Group {
+export function makeOwl(): THREE.Group {
   const owl = new THREE.Group();
   const body = shadowed(
     new THREE.Mesh(new THREE.SphereGeometry(0.27, 16, 14), M.brown),
@@ -700,7 +729,7 @@ function makeOwl(): THREE.Group {
   return owl;
 }
 
-function makeMuseum(): THREE.Group {
+export function makeMuseum(): THREE.Group {
   const g = new THREE.Group();
   const W = 5.6;
   const D = 3.4;
@@ -711,22 +740,22 @@ function makeMuseum(): THREE.Group {
   // foundation
   const found = shadowed(new THREE.Mesh(rbox(W + 0.34, 0.42, D + 0.34, 0.1), M.stone), true, true);
   found.position.y = 0.17;
-  // walls
-  const walls = shadowed(new THREE.Mesh(rbox(W, WH, D, 0.14), M.creamWall), true, true);
+  // walls (per-island museum wall tint; the house keeps M.creamWall)
+  const walls = shadowed(new THREE.Mesh(rbox(W, WH, D, 0.14), std(MUSEUM.wall, 0.92)), true, true);
   walls.position.y = baseY + WH / 2;
 
   // cornice / entablature band under the roof
   const cornice = shadowed(new THREE.Mesh(rbox(W + 0.4, 0.3, D + 0.4, 0.06), M.white), true, true);
   cornice.position.y = wallTop + 0.13;
 
-  // --- Hip roof (blue shingles) ---
+  // --- Hip roof (per-island shingles) ---
   const over = 0.4;
   const baseSide = W + over * 2; // 6.4
   const rBottom = baseSide / Math.SQRT2; // square half-diagonal to vertex
   const roofH = 1.25;
   const rTop = rBottom * 0.1;
   const roofGeo = new THREE.CylinderGeometry(rTop, rBottom, roofH, 4, 1);
-  const roofTex = makeTex(shingleCanvas(COL.blue, 0x6fa0d8, COL.blueDeep), 6, 5, true);
+  const roofTex = makeTex(shingleCanvas(MUSEUM.roof, MUSEUM.roofLight, MUSEUM.roofDeep), 6, 5, true);
   const roofMat = new THREE.MeshStandardMaterial({ map: roofTex, roughness: 0.85, metalness: 0 });
   const roof = shadowed(new THREE.Mesh(roofGeo, roofMat), true, true);
   roof.rotation.y = Math.PI / 4;
@@ -927,7 +956,7 @@ function makeMuseum(): THREE.Group {
 // NOTICE BOARD
 // ============================================================================
 
-function makeNoticeBoard(): THREE.Group {
+export function makeNoticeBoard(): THREE.Group {
   const g = new THREE.Group();
 
   // two bark posts
@@ -1009,7 +1038,7 @@ function makeNoticeBoard(): THREE.Group {
 // SIGNS
 // ============================================================================
 
-function makeSign(text: string): THREE.Group {
+export function makeSign(text: string): THREE.Group {
   const g = new THREE.Group();
   // bark post
   const post = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.085, 1.6, 10), M.woodPost), true, true);
@@ -1047,7 +1076,7 @@ function makeSign(text: string): THREE.Group {
 // LAMPS
 // ============================================================================
 
-function makeLamp(): THREE.Group {
+export function makeLamp(): THREE.Group {
   const g = new THREE.Group();
   // base
   const base = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.14, 14), M.navy), true, true);
@@ -1101,55 +1130,4 @@ function makeLamp(): THREE.Group {
 
   g.add(base, pole, collar, cage, bulb, cap, finial, light);
   return g;
-}
-
-// ============================================================================
-// PUBLIC API — footprints & rotations are contract-fixed (island.ts depends on them)
-// ============================================================================
-
-/**
- * Adds every built structure to the island group and registers colliders.
- * Footprints are contract-fixed (interaction points depend on them):
- *   house (-6.5,-4.6) r3.0 · museum (6.6,-5.2) r3.6 · board (6.2,5.2) r1.35
- */
-export function addBuildings(group: THREE.Group, colliders: Collider[]): void {
-  const house = makeHouse();
-  house.position.set(-6.5, 0, -4.6);
-  house.rotation.y = Math.atan2(6.5, 5.1);
-  group.add(house);
-  colliders.push({ x: -6.5, z: -4.6, r: 3.0 });
-
-  const houseSign = makeSign('Home');
-  houseSign.position.set(-5.3, 0, -1.6); // flanks the door approach (never blocks it)
-  houseSign.rotation.y = Math.atan2(5.3, 2.1);
-  group.add(houseSign);
-  colliders.push({ x: -5.3, z: -1.6, r: 0.5 });
-
-  const museum = makeMuseum();
-  museum.position.set(6.6, 0, -5.2);
-  museum.rotation.y = Math.atan2(-6.6, 5.7);
-  group.add(museum);
-  colliders.push({ x: 6.6, z: -5.2, r: 3.6 });
-
-  const museumSign = makeSign('Museum');
-  museumSign.position.set(5.6, 0, -1.2); // flanks the door approach
-  museumSign.rotation.y = Math.atan2(-5.6, 1.7);
-  group.add(museumSign);
-  colliders.push({ x: 5.6, z: -1.2, r: 0.5 });
-
-  const board = makeNoticeBoard();
-  board.position.set(6.2, 0, 5.2);
-  board.rotation.y = Math.atan2(-6.2, -5.2);
-  group.add(board);
-  colliders.push({ x: 6.2, z: 5.2, r: 1.35 });
-
-  for (const [lx, lz] of [
-    [-2.8, -2.6],
-    [3.1, 1.6],
-  ]) {
-    const lamp = makeLamp();
-    lamp.position.set(lx, 0, lz);
-    group.add(lamp);
-    colliders.push({ x: lx, z: lz, r: 0.32 });
-  }
 }

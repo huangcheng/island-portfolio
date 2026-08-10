@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Villager } from './villager';
-import type { Collider } from './island';
+import type { Collider } from './kit/types';
 
 const MOVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 

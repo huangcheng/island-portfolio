@@ -1,10 +1,13 @@
 import * as THREE from 'three';
-import { buildIsland, makeSeaplane, type InteractPoint, type IslandBuild } from './island';
+import { ACTIVE } from './islands';
+import { makeSeaplane } from './kit/props';
+import type { InteractPoint, IslandBuild } from './kit/types';
 import { buildInterior, type InteriorBuild } from './interiors';
 import { Villager } from './villager';
 import { Controls } from './controls';
 import { Interactions } from './interactions';
 import { UiPanels } from './uiPanels';
+import { setUiTheme } from './uiKit';
 import { DESTINATIONS } from '../site';
 
 type Handler = (payload?: any) => void;
@@ -300,7 +303,8 @@ export class Engine {
     this.scene.add(this.hemi, this.dirLight, this.dirLight.target, fill);
 
     // ── World ────────────────────────────────────────────────────────────────
-    this.island = buildIsland();
+    setUiTheme(ACTIVE.theme.ui);
+    this.island = ACTIVE.build();
     this.scene.add(this.island.group);
 
     // Cache each flame's co-located PointLight (sibling in its parent group)

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { InteractPoint } from './island';
+import type { InteractPoint } from './kit/types';
 
 /**
  * Proximity tracker for interactable spots. No floating markers — the HUD
