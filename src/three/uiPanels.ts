@@ -263,7 +263,7 @@ export class UiPanels {
     const summary = makeLabel(p.summary, {
       size: 0.08, color: C.body, anchorX: 'left', anchorY: 'top', maxWidth: W - 0.7, align: 'left',
     });
-    summary.position.set(-W / 2 + 0.34, H / 2 - 0.52, 0.002);
+    summary.position.set(-W / 2 + 0.34, H / 2 - 0.52 - (p.date ? 0.1 : 0), 0.002);
     g.add(summary);
 
     // Star pill (drawn star + count) — only for exhibits that carry stars

@@ -25,7 +25,7 @@ export interface IslandContent {
     github: { label: string; url: string };
     email: { label: string; url: string };
   };
-  /** Museum exhibits — interior shows at most 5 frames. */
+  /** Museum exhibits. The interior currently hangs 3 frames; up to 5 after the interior task lands. */
   exhibits: Exhibit[];
   /** Subtitle line under the museum dialog title. */
   exhibitsSubtitle: string;
