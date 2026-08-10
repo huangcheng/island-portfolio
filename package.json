@@ -14,7 +14,8 @@
     "build:chengsh": "vite build --mode chengsh --outDir dist/chengsh --emptyOutDir",
     "build:misthois": "vite build --mode misthois --outDir dist/misthois --emptyOutDir",
     "build:kleos": "vite build --mode kleos --outDir dist/kleos --emptyOutDir",
-    "islands": "pnpm build:chengim && pnpm build:chengsh && pnpm build:misthois && pnpm build:kleos"
+    "build:noveo": "vite build --mode noveo --outDir dist/noveo --emptyOutDir",
+    "islands": "pnpm build:chengim && pnpm build:chengsh && pnpm build:misthois && pnpm build:kleos && pnpm build:noveo"
   },
   "dependencies": {
     "@tanstack/react-router": "^1.170.22",

@@ -389,3 +389,39 @@ export function placePath(
     group.add(rimBlob, ctr);
   }
 }
+
+
+/** Traffic cone. */
+export function makeCone(): THREE.Group {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.42, 12), std(0xe07830, 0.7));
+  body.position.y = 0.25;
+  const band = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.028, 6, 12), std(0xf7f4ec, 0.6));
+  band.rotation.x = Math.PI / 2; band.position.y = 0.28;
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.05, 0.3), std(0xc96428, 0.8));
+  base.position.y = 0.025;
+  g.add(body, band, base);
+  g.traverse((o) => { if (o instanceof THREE.Mesh) shadowed(o); });
+  return g;
+}
+
+/** Scaffolding frame: 4 poles + 2 crossbars + a plank, sized to hug a building face. */
+export function makeScaffold(w = 7.0, h = 3.6, d = 4.4): THREE.Group {
+  const g = new THREE.Group();
+  const pole = std(0xc9a23c, 0.6, 0.3);
+  for (const [x, z] of [[-w / 2, -d / 2], [w / 2, -d / 2], [-w / 2, d / 2], [w / 2, d / 2]] as const) {
+    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, h, 8), pole);
+    p.position.set(x, h / 2, z); g.add(p);
+  }
+  for (const y of [h * 0.45, h * 0.9]) {
+    for (const z of [-d / 2, d / 2]) {
+      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, w, 8), pole);
+      bar.rotation.z = Math.PI / 2; bar.position.set(0, y, z); g.add(bar);
+    }
+  }
+  const plank = new THREE.Mesh(new THREE.BoxGeometry(w, 0.07, 0.5), std(0xb08a5a, 0.85));
+  plank.position.set(0, h * 0.9 + 0.05, -d / 2);
+  g.add(plank);
+  g.traverse((o) => { if (o instanceof THREE.Mesh) shadowed(o); });
+  return g;
+}
