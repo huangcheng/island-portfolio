@@ -197,6 +197,12 @@ export class Engine {
   private island: IslandBuild;
   /** Cached PointLight co-located with each flame, for flicker modulation. */
   private flameLights: ({ light: THREE.PointLight; base: number } | null)[] = [];
+  /** Exterior lights (lamps/lanterns/toro) + their emissive meshes — night glow. */
+  private nightLights: {
+    light: THREE.PointLight;
+    base: number;
+    emissives: { mat: THREE.MeshStandardMaterial; base: number }[];
+  }[] = [];
   private dirLight: THREE.DirectionalLight;
   private hemi: THREE.HemisphereLight;
   /** Current key-light offset (sun by day, moon by night) — set by updateDayNight. */
@@ -319,6 +325,25 @@ export class Engine {
       const siblings = f.parent ? f.parent.children : [];
       const light = siblings.find((c) => c instanceof THREE.PointLight);
       return light ? { light, base: light.intensity } : null;
+    });
+
+    // Every OTHER PointLight on the island is an exterior lamp/lantern/toro:
+    // mostly off by day, full glow at night (modulated by nightFactor in the
+    // tick). The prop's emissive mesh (paper/glow box) rides along so it
+    // doesn't burn at noon. Flame lights are excluded — they flicker 24/7.
+    const flameLightSet = new Set(this.flameLights.map((f) => f?.light));
+    this.island.group.traverse((o) => {
+      if (!(o instanceof THREE.PointLight) || flameLightSet.has(o)) return;
+      const emissives: { mat: THREE.MeshStandardMaterial; base: number }[] = [];
+      const grp = o.parent;
+      if (grp && grp !== this.island.group) {
+        grp.traverse((m) => {
+          if (m instanceof THREE.Mesh && m.material instanceof THREE.MeshStandardMaterial && m.material.emissiveIntensity > 0) {
+            emissives.push({ mat: m.material, base: m.material.emissiveIntensity });
+          }
+        });
+      }
+      this.nightLights.push({ light: o, base: o.intensity, emissives });
     });
 
     this.villager.position.set(0, 0, 3.2);
@@ -763,6 +788,13 @@ export class Engine {
           fl.light.intensity = fl.base * (1 + flick);
         }
       });
+
+      // Exterior lights (lamps/lanterns/toro) rest by day, glow at night —
+      // nightFactor lerps with the clock, so the fade comes free.
+      for (const nl of this.nightLights) {
+        nl.light.intensity = nl.base * (0.15 + 0.85 * this.nightFactor);
+        for (const e of nl.emissives) e.mat.emissiveIntensity = e.base * (0.3 + 0.7 * this.nightFactor);
+      }
 
       // Wave crests bob + shimmer on the water
       this.island.waves.forEach((w, i) => {

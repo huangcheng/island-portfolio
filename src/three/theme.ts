@@ -21,11 +21,11 @@ export interface IslandTheme {
   };
   sand: { base: string; wet: number };
   path: { center: number; rim: number };
-  /** Day/night sky stops — staged config; consumed once the engine day/night
-   *  wiring reads ACTIVE.theme (Task 4). */
+  /** Day/night sky states — the engine builds its day/night stops from these
+   *  five via buildDayStops. */
   sky: { night: SkyState; dawn: SkyState; day: SkyState; sunset: SkyState; dusk: SkyState };
-  /** Ambient drifting particles (petals/leaves/dust) — staged config; consumed
-   *  once the engine particle system reads ACTIVE.theme (Task 4). */
+  /** Ambient drifting particles — palette/count for the engine's drifting
+   *  particle system (petals/leaves/dust). */
   particles: { palette: number[]; count: number };
   /** UI wood skin. */
   ui: Partial<UiPalette>;
