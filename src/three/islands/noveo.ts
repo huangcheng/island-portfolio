@@ -116,11 +116,11 @@ export function build(): IslandBuild {
 
   // Hand-placed "coming soon" sign, leaning by the museum approach.
   const soonSign = makeSign('Soon!');
-  soonSign.position.set(2.8, 0, -8.9);
-  soonSign.rotation.y = -0.4;
+  soonSign.position.set(4.6, 0, -7.2);
+  soonSign.rotation.y = -0.57; // faces the plaza
   soonSign.rotation.z = 0.1; // leaning
   group.add(soonSign);
-  colliders.push({ x: 2.8, z: -8.9, r: 0.5 });
+  colliders.push({ x: 4.6, z: -7.2, r: 0.5 });
 
   for (const [lx, lz] of [
     [-3.0, -1.0],
