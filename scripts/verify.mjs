@@ -2,15 +2,20 @@
  * End-to-end verification for the island portfolio (Playwright, headless).
  *
  * Usage:
- *   pnpm build           # build first
- *   node scripts/verify.mjs
+ *   pnpm build:chengim                          # build the site first
+ *   node scripts/verify.mjs [site]              # default site: chengim
+ *   pnpm verify:islands                         # build + verify all five
  *
- * It serves dist/ via vite preview, then checks:
+ * It serves dist/<site>/ via vite preview, then checks:
  *   1. All routes load with zero console errors
  *   2. Walk + E interactions (enter house/museum, desk/photo routes, exit)
  *   3. Exhibit placard opens + closes
  *   4. Pier walk + Dodo Airlines flight board opens
  *   5. Day/night palette actually lerps (forced hours)
+ *
+ * Island-surface teleport coords are read live from the active island's
+ * interact points (each island lays out buildings/pier differently);
+ * interior coords stay hardcoded — interiors are shared across islands.
  *
  * Browser: uses your installed Chrome. If missing, run once:
  *   pnpm exec playwright install chromium
@@ -18,11 +23,15 @@
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
+import path from 'node:path';
+
+const SITE_ID = process.argv[2] ?? 'chengim';
+const DIST = new URL(`../dist/${SITE_ID}/`, import.meta.url).pathname;
+const SHOTS = new URL(`../test-shots/${SITE_ID}/`, import.meta.url).pathname;
+mkdirSync(SHOTS, { recursive: true });
 
 const PORT = 4173;
 const BASE = `http://localhost:${PORT}`;
-const SHOTS = 'test-shots';
-mkdirSync(SHOTS, { recursive: true });
 
 let passed = 0;
 let failed = 0;
@@ -76,8 +85,12 @@ async function launchBrowser() {
   throw lastErr;
 }
 
-console.log('▸ starting vite preview…');
-const preview = spawn('pnpm', ['preview', '--port', String(PORT), '--strictPort'], { stdio: 'ignore', shell: true });
+console.log(`▸ starting vite preview for site "${SITE_ID}" (${DIST})…`);
+const preview = spawn(
+  'pnpm',
+  ['exec', 'vite', 'preview', '--outDir', DIST, '--port', String(PORT), '--strictPort'],
+  { stdio: 'ignore', shell: true },
+);
 preview.unref();
 process.on('exit', () => preview.kill());
 
@@ -89,16 +102,25 @@ try {
   console.log('▸ browser up, running checks…');
   const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
   const consoleErrors = [];
-  page.on('pageerror', (e) => consoleErrors.push(e.message));
-  page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+  // Once the flight-board click fires external navigation, the target site may
+  // be unreachable from this network — stop counting its errors as ours.
+  let navigatedAway = false;
+  page.on('pageerror', (e) => { if (!navigatedAway) consoleErrors.push(e.message); });
+  page.on('console', (m) => { if (!navigatedAway && m.type() === 'error') consoleErrors.push(m.text()); });
   const eng = (fn, ...a) => page.evaluate(fn, ...a);
+  // Live position of an island interact point ('about' | 'projects' | 'airport').
+  const pointPos = (id) =>
+    eng((pid) => {
+      const p = window.__engine.island.points.find((q) => q.id === pid);
+      return { x: p.position.x, y: p.position.y, z: p.position.z };
+    }, id);
 
   // ── 1. Routes load cleanly ──────────────────────────────────────────────
   console.log('\n[1] routes load with zero console errors');
   for (const route of ['/', '/about', '/projects', '/contact']) {
     await page.goto(BASE + route, { waitUntil: 'load' });
     await page.waitForTimeout(4500);
-    await page.screenshot({ path: `${SHOTS}/route${route === '/' ? '-home' : route.replace('/', '-')}.png` });
+    await page.screenshot({ path: path.join(SHOTS, `route${route === '/' ? '-home' : route.replace('/', '-')}.png`) });
   }
   check('no console errors after all routes', consoleErrors.length === 0);
 
@@ -118,7 +140,8 @@ try {
   check('villager walks with keys', Math.hypot(pos1[0] - pos0[0], pos1[1] - pos0[1]) > 0.5);
 
   // Enter the house via door point
-  await eng(() => { window.__engine.villager.position.set(-3.63, 0, -2.35); });
+  const house = await pointPos('about');
+  await eng((p) => { window.__engine.villager.position.set(p.x, p.y, p.z); }, house);
   await page.waitForTimeout(300);
   await page.keyboard.press('e');
   await page.waitForTimeout(1800);
@@ -130,7 +153,7 @@ try {
   await page.keyboard.press('e');
   await page.waitForTimeout(1200);
   check('desk opens /about', (await eng(() => location.pathname)) === '/about');
-  await page.screenshot({ path: `${SHOTS}/house-desk.png` });
+  await page.screenshot({ path: path.join(SHOTS, 'house-desk.png') });
 
   // Esc closes dialog; exit door returns to island
   await page.keyboard.press('Escape');
@@ -142,7 +165,8 @@ try {
   check('door exit returns to island', await eng(() => window.__engine.activeKind === 'island'));
 
   // Museum: enter + frame exhibit
-  await eng(() => { window.__engine.villager.position.set(3.49, 0, -2.53); });
+  const museum = await pointPos('projects');
+  await eng((p) => { window.__engine.villager.position.set(p.x, p.y, p.z); }, museum);
   await page.waitForTimeout(300);
   await page.keyboard.press('e');
   await page.waitForTimeout(1800);
@@ -152,7 +176,7 @@ try {
   await page.keyboard.press('e');
   await page.waitForTimeout(1000);
   check('frame opens exhibit placard', await eng(() => window.__engine.exhibitOpen === true));
-  await page.screenshot({ path: `${SHOTS}/museum-exhibit.png` });
+  await page.screenshot({ path: path.join(SHOTS, 'museum-exhibit.png') });
 
   // ── 3. Exhibit close via ✕ ──────────────────────────────────────────────
   console.log('\n[3] exhibit ✕ closes');
@@ -175,14 +199,15 @@ try {
   await page.waitForTimeout(200);
   await page.keyboard.press('e'); // exit museum first
   await page.waitForTimeout(1800);
-  await eng(() => { window.__engine.villager.position.set(10.6, 0, 19.2); });
+  const pier = await pointPos('airport');
+  await eng((p) => { window.__engine.villager.position.set(p.x, p.y, p.z); }, pier);
   await page.waitForTimeout(400);
   check('panda stands on pier deck (y≈0.16)', await eng(() => Math.abs(window.__engine.villager.position.y - 0.165) < 0.06));
-  await page.screenshot({ path: `${SHOTS}/pier-end.png` });
+  await page.screenshot({ path: path.join(SHOTS, 'pier-end.png') });
   await page.keyboard.press('e');
   await page.waitForTimeout(1200);
   check('flight board opens', await eng(() => window.__engine.boardOpen === true));
-  await page.screenshot({ path: `${SHOTS}/flight-board.png` });
+  await page.screenshot({ path: path.join(SHOTS, 'flight-board.png') });
 
   // Click the first ONLINE flight row (hots[1]; hots[0] is the ✕) → flyby + navigate.
   // Retry a few times — a click can land mid-pop-in and miss the row.
@@ -204,17 +229,19 @@ try {
     flew = await eng(() => !!window.__engine.transition).catch(() => true); // true if context died = navigating
   }
   if (tries > 1) console.log(`  (flight click needed ${tries} tries)`);
+  navigatedAway = true; // external site errors from here on are not ours
   await page.waitForTimeout(300);
-  await page.screenshot({ path: `${SHOTS}/flyby.png` }).catch(() => {});
+  await page.screenshot({ path: path.join(SHOTS, 'flyby.png') }).catch(() => {});
   await page.waitForTimeout(2500);
   let nav = null;
   try {
     nav = page.url();
   } catch { /* context mid-navigation */ }
-  check(`external island navigation fired (${nav})`, flew && typeof nav === 'string' && /cheng\.sh|misthois\.cn|kleos\.cn|chrome-error/.test(nav));
+  check(`external island navigation fired (${nav})`, flew && typeof nav === 'string' && /cheng\.im|cheng\.sh|misthois\.cn|kleos\.cn|noveo\.cn|chrome-error/.test(nav));
   // We navigated away — go back to the island for any later checks
   await page.goto(BASE + '/', { waitUntil: 'load' }).catch(() => {});
   await page.waitForTimeout(1000);
+  navigatedAway = false; // back on our own site — count errors again
 
   // ── 5. Day/night lerp ───────────────────────────────────────────────────
   console.log('\n[5] day/night palette lerps with the clock');

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test:e2e": "node scripts/verify.mjs",
     "verify": "pnpm build && pnpm test:e2e",
+    "verify:islands": "pnpm build:chengim && node scripts/verify.mjs chengim && pnpm build:chengsh && node scripts/verify.mjs chengsh && pnpm build:misthois && node scripts/verify.mjs misthois && pnpm build:kleos && node scripts/verify.mjs kleos && pnpm build:noveo && node scripts/verify.mjs noveo",
     "build:chengim": "vite build --mode chengim --outDir dist/chengim --emptyOutDir",
     "build:chengsh": "vite build --mode chengsh --outDir dist/chengsh --emptyOutDir",
     "build:misthois": "vite build --mode misthois --outDir dist/misthois --emptyOutDir",
