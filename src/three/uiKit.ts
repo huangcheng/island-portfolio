@@ -10,26 +10,27 @@ export const FONT_BODY = '/fonts/baloo2-500.ttf';
 export const FONT_BOLD = '/fonts/baloo2-700.ttf';
 export const FONT_HEAVY = '/fonts/baloo2-800.ttf';
 
-/** AC palette (mirrors the design tokens). */
-export const C = {
-  paper: 0xfffef7,
-  paperWarm: 0xf7f3df,
-  line: 0xd9cdb4,
-  body: 0x725d42,
-  heading: 0x794f27,
-  teal: 0x19c8b9,
-  pink: 0xf8a6b2,
-  pinkEdge: 0xf07f96,
-  green: 0x8ac68a,
-  greenEdge: 0x6fb36f,
-  blue: 0x889df0,
-  blueEdge: 0x6b80d8,
-  orange: 0xe59266,
-  orangeEdge: 0xc97a4e,
-  gold: 0xf7cd67,
-  goldEdge: 0xe0b84e,
-  white: 0xffffff,
+export interface UiPalette {
+  paper: number; paperWarm: number; line: number; body: number; heading: number;
+  teal: number; pink: number; pinkEdge: number; green: number; greenEdge: number;
+  blue: number; blueEdge: number; orange: number; orangeEdge: number;
+  gold: number; goldEdge: number; white: number;
+}
+
+/** Live UI palette — island modules re-skin it via setUiTheme before UI is built. */
+export const C: UiPalette = {
+  paper: 0xfffef7, paperWarm: 0xf7f3df, line: 0xd9cdb4, body: 0x725d42, heading: 0x794f27,
+  teal: 0x19c8b9, pink: 0xf8a6b2, pinkEdge: 0xf07f96, green: 0x8ac68a, greenEdge: 0x6fb36f,
+  blue: 0x889df0, blueEdge: 0x6b80d8, orange: 0xe59266, orangeEdge: 0xc97a4e,
+  gold: 0xf7cd67, goldEdge: 0xe0b84e, white: 0xffffff,
 };
+
+const C_DEFAULTS: UiPalette = { ...C };
+
+/** Apply an island's UI skin. Omit keys to keep defaults. Call BEFORE building UI. */
+export function setUiTheme(overrides: Partial<UiPalette> = {}): void {
+  Object.assign(C, C_DEFAULTS, overrides);
+}
 
 /** Rounded-rectangle THREE.Shape centred on the origin. */
 export function roundedRectShape(w: number, h: number, r: number): THREE.Shape {
