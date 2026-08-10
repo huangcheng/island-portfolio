@@ -371,7 +371,11 @@ export class Engine {
 
     // ── Iris wipe (AC door transition) — camera-child fullscreen shader quad ──
     this.irisMat = new THREE.ShaderMaterial({
-      uniforms: { uRadius: { value: 2.0 }, uAspect: { value: 16 / 9 } },
+      uniforms: {
+        uRadius: { value: 2.0 },
+        uAspect: { value: 16 / 9 },
+        uTint: { value: new THREE.Color(0.015, 0.01, 0.02) },
+      },
       vertexShader: /* glsl */ `
         varying vec2 vUv;
         void main() {
@@ -382,11 +386,12 @@ export class Engine {
       fragmentShader: /* glsl */ `
         uniform float uRadius;
         uniform float uAspect;
+        uniform vec3 uTint;
         varying vec2 vUv;
         void main() {
           float d = length(vec2(vUv.x * uAspect, vUv.y));
           if (d < uRadius) discard;
-          gl_FragColor = vec4(0.015, 0.01, 0.02, 1.0);
+          gl_FragColor = vec4(uTint, 1.0);
         }
       `,
       depthTest: false,
@@ -507,6 +512,9 @@ export class Engine {
   /** Dodo Airlines departure: seaplane sweeps across while the iris closes. */
   private flyAway(url: string) {
     if (this.transition) return;
+    // Tint the iris toward the destination's palette chip (kept dark).
+    const dest = DESTINATIONS.find((d) => d.url === url);
+    if (dest) (this.irisMat.uniforms.uTint.value as THREE.Color).setHex(dest.chip).multiplyScalar(0.35);
     const plane = makeSeaplane();
     plane.scale.setScalar(0.85);
     plane.rotation.y = -Math.PI / 2; // nose left

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Text } from 'troika-three-text';
-import { C, FONT_BOLD, FONT_HEAVY, makeIconMesh, makeLabel, makePanel, roundedRectShape, UiButton } from './uiKit';
+import { C, FONT_BOLD, FONT_HEAVY, makeIconMesh, makeLabel, makePanel, roundedRectShape, UiButton, uiMaterial } from './uiKit';
 import { profile, exhibits, exhibitsSubtitle, locations, type Exhibit } from '../content';
 import { SITE, type SisterIsland } from '../site';
 
@@ -375,11 +375,16 @@ export class UiPanels {
       dot.position.set(-rowW / 2 + 0.24, 0, 0.002);
       row.add(dot);
 
+      // palette chip, right of the fruit dot
+      const chip = new THREE.Mesh(new THREE.PlaneGeometry(0.09, 0.09), uiMaterial(isl.chip));
+      chip.position.set(-rowW / 2 + 0.38, 0, 0.002);
+      row.add(chip);
+
       const name = makeLabel(isl.name, { size: 0.088, color: C.heading, font: FONT_BOLD, anchorX: 'left' });
-      name.position.set(-rowW / 2 + 0.42, 0.1, 0.002);
+      name.position.set(-rowW / 2 + 0.56, 0.1, 0.002);
       row.add(name);
       const host = makeLabel(`${isl.host} · ${isl.theme}`, { size: 0.06, color: C.teal, anchorX: 'left' });
-      host.position.set(-rowW / 2 + 0.42, -0.12, 0.002);
+      host.position.set(-rowW / 2 + 0.56, -0.12, 0.002);
       row.add(host);
 
       // Status pill

@@ -50,7 +50,7 @@ export function roundedRectShape(w: number, h: number, r: number): THREE.Shape {
   return s;
 }
 
-function uiMaterial(color: number): THREE.MeshBasicMaterial {
+export function uiMaterial(color: number): THREE.MeshBasicMaterial {
   return new THREE.MeshBasicMaterial({
     color,
     toneMapped: false,
