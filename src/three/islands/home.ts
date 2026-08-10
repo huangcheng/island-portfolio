@@ -50,7 +50,7 @@ export const theme: IslandTheme = {
   sand: { base: '#f7e6ad', wet: 0xe6cf8e },
   path: { center: 0xece0b0, rim: 0xcdb884 },
   sky: {
-    night:  { horizon: 0x1a2c47, mid: 0x101f38, zenith: 0x0a1526, fog: 0x101f38 },
+    night:  { horizon: 0x1a2c47, mid: 0x101f38, zenith: 0x0a1526, fog: 0x1a2c47 },
     dawn:   { horizon: 0xffc98a, mid: 0x9fb8e0, zenith: 0x5f9fd8, fog: 0xffd9a8 },
     day:    { horizon: 0xffe9c9, mid: 0xa8dcf0, zenith: 0x6ec3f0, fog: 0xdfe8e6 },
     sunset: { horizon: 0xffb36b, mid: 0xe8a0b8, zenith: 0x8a70b8, fog: 0xe8a878 },
