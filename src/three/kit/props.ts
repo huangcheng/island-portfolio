@@ -160,6 +160,26 @@ export function makeLogBench(): THREE.Group {
   return g;
 }
 
+/** Paper lantern on a wooden post — warm glow, AC-festival style. */
+export function makeLantern(post = 0x6b4f2a, glow = 0xffd9a0): THREE.Group {
+  const g = new THREE.Group();
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.055, 1.5, 8), std(post, 0.85));
+  pole.position.y = 0.75;
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.06, 0.06), std(post, 0.85));
+  arm.position.set(0.2, 1.48, 0);
+  const paper = new THREE.Mesh(
+    new THREE.SphereGeometry(0.16, 12, 10),
+    new THREE.MeshStandardMaterial({ color: 0xfff2d0, emissive: glow, emissiveIntensity: 0.85, roughness: 0.6 }),
+  );
+  paper.scale.y = 1.15;
+  paper.position.set(0.42, 1.3, 0);
+  const light = new THREE.PointLight(glow, 3.2, 6, 1.8);
+  light.position.copy(paper.position);
+  g.add(pole, arm, paper, light);
+  g.traverse((o) => { if (o instanceof THREE.Mesh) shadowed(o); });
+  return g;
+}
+
 /** Tiki torch with a small flame. */
 export function makeTikiTorch(): { g: THREE.Group; flame: THREE.Mesh } {
   const g = new THREE.Group();
