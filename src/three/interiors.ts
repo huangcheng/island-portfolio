@@ -319,24 +319,24 @@ const KIND_COLORS: Record<Exhibit['kind'], string> = {
   log: '#6fae7d',
 };
 
-/** Fallback museum art: kind-colored field + big initial (Baloo-safe glyphs only).
+/** Fallback museum art: kind-colored field + big initial (ASCII only).
  *  Returns a canvas like the other art painters; makeFrame wraps it in makeTex. */
 function genericArtCanvas(e: Exhibit): HTMLCanvasElement {
-  const W = 256;
-  const H = 320;
+  const W = 380;
+  const H = 260;
   const c = cv(W, H);
   const ctx = c.getContext('2d')!;
   ctx.fillStyle = KIND_COLORS[e.kind];
   ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = 'rgba(255,255,255,0.22)';
-  ctx.fillRect(0, 220, W, 100);
+  ctx.fillRect(0, 172, W, 88);
   ctx.fillStyle = '#fffef7';
-  ctx.font = 'bold 150px sans-serif';
+  ctx.font = 'bold 120px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(e.title.charAt(0).toUpperCase(), W / 2, 130);
-  ctx.font = 'bold 34px sans-serif';
-  ctx.fillText(e.kind.toUpperCase(), W / 2, 268);
+  ctx.fillText(e.title.charAt(0).toUpperCase(), W / 2, 96);
+  ctx.font = 'bold 30px sans-serif';
+  ctx.fillText(e.kind.toUpperCase(), W / 2, 216);
   return c;
 }
 
