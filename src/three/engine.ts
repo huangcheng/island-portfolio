@@ -9,6 +9,7 @@ import { Interactions } from './interactions';
 import { UiPanels } from './uiPanels';
 import { setUiTheme } from './uiKit';
 import { DESTINATIONS } from '../site';
+import type { IslandTheme, SkyState } from './theme';
 
 type Handler = (payload?: any) => void;
 
@@ -41,17 +42,21 @@ interface DayStop {
   exposure: number;
   night: number; // 0 day → 1 full night
 }
-const DAY_STOPS: DayStop[] = [
-  { h: 0.0, horizon: 0x1a2c47, mid: 0x101f38, zenith: 0x0a1526, fog: 0x1a2c47, sun: 0xb8c8f0, sunI: 0.22, hemiI: 0.22, exposure: 0.9, night: 1.0 },
-  { h: 4.5, horizon: 0x1a2c47, mid: 0x101f38, zenith: 0x0a1526, fog: 0x1a2c47, sun: 0xb8c8f0, sunI: 0.22, hemiI: 0.22, exposure: 0.9, night: 1.0 },
-  { h: 6.0, horizon: 0xffc98a, mid: 0x9fb8e0, zenith: 0x5f9fd8, fog: 0xffd9a8, sun: 0xffb56b, sunI: 1.3, hemiI: 0.65, exposure: 1.06, night: 0.3 },
-  { h: 8.0, horizon: 0xffe9c9, mid: 0xa8dcf0, zenith: 0x6ec3f0, fog: 0xdfe8e6, sun: 0xfff2d9, sunI: 2.0, hemiI: 0.92, exposure: 1.12, night: 0.0 },
-  { h: 16.5, horizon: 0xffe9c9, mid: 0xa8dcf0, zenith: 0x6ec3f0, fog: 0xdfe8e6, sun: 0xfff2d9, sunI: 2.0, hemiI: 0.92, exposure: 1.12, night: 0.0 },
-  { h: 18.0, horizon: 0xffb36b, mid: 0xe8a0b8, zenith: 0x8a70b8, fog: 0xe8a878, sun: 0xff9a4a, sunI: 1.7, hemiI: 0.6, exposure: 1.08, night: 0.15 },
-  { h: 19.5, horizon: 0x9a6a9a, mid: 0x54487e, zenith: 0x22305c, fog: 0x7a5f7e, sun: 0xd8908a, sunI: 0.8, hemiI: 0.45, exposure: 1.0, night: 0.65 },
-  { h: 20.5, horizon: 0x1a2c47, mid: 0x101f38, zenith: 0x0a1526, fog: 0x1a2c47, sun: 0xb8c8f0, sunI: 0.22, hemiI: 0.22, exposure: 0.9, night: 1.0 },
-  { h: 24.0, horizon: 0x1a2c47, mid: 0x101f38, zenith: 0x0a1526, fog: 0x1a2c47, sun: 0xb8c8f0, sunI: 0.22, hemiI: 0.22, exposure: 0.9, night: 1.0 },
-];
+/** Sky stops per time slot, colours pulled from the active island's theme. */
+function buildDayStops(sky: IslandTheme['sky']): DayStop[] {
+  const s = (state: SkyState) => ({ horizon: state.horizon, mid: state.mid, zenith: state.zenith, fog: state.fog });
+  return [
+    { h: 0.0, ...s(sky.night), sun: 0xb8c8f0, sunI: 0.22, hemiI: 0.22, exposure: 0.9, night: 1.0 },
+    { h: 4.5, ...s(sky.night), sun: 0xb8c8f0, sunI: 0.22, hemiI: 0.22, exposure: 0.9, night: 1.0 },
+    { h: 6.0, ...s(sky.dawn), sun: 0xffb56b, sunI: 1.3, hemiI: 0.65, exposure: 1.06, night: 0.3 },
+    { h: 8.0, ...s(sky.day), sun: 0xfff2d9, sunI: 2.0, hemiI: 0.92, exposure: 1.12, night: 0.0 },
+    { h: 16.5, ...s(sky.day), sun: 0xfff2d9, sunI: 2.0, hemiI: 0.92, exposure: 1.12, night: 0.0 },
+    { h: 18.0, ...s(sky.sunset), sun: 0xff9a4a, sunI: 1.7, hemiI: 0.6, exposure: 1.08, night: 0.15 },
+    { h: 19.5, ...s(sky.dusk), sun: 0xd8908a, sunI: 0.8, hemiI: 0.45, exposure: 1.0, night: 0.65 },
+    { h: 20.5, ...s(sky.night), sun: 0xb8c8f0, sunI: 0.22, hemiI: 0.22, exposure: 0.9, night: 1.0 },
+    { h: 24.0, ...s(sky.night), sun: 0xb8c8f0, sunI: 0.22, hemiI: 0.22, exposure: 0.9, night: 1.0 },
+  ];
+}
 
 // ── Procedural sky shader ────────────────────────────────────────────────────
 // Big inverted sphere centred on the camera. A three-stop vertical gradient
@@ -146,12 +151,10 @@ interface Petal {
   tumbleSpd: number;
 }
 
-const PETAL_COUNT = 34;
 // Vertical band the petals recycle through (top -> bottom -> wrap to top).
 const PETAL_TOP = 8.5;
 const PETAL_BOTTOM = -0.5;
 const PETAL_RANGE = PETAL_TOP - PETAL_BOTTOM;
-const PETAL_PALETTE = [0xff9ec4, 0xffd98a, 0xfff3c0, 0xffb380, 0xc9a3ff, 0xffffff];
 
 /** Soft round sprite drawn at runtime — no texture file needed. */
 function makePetalTexture(): THREE.Texture {
@@ -224,6 +227,9 @@ export class Engine {
   private petalMat: THREE.MeshBasicMaterial;
   private petalTex: THREE.Texture;
   private petalData: Petal[] = [];
+  private petalPalette: number[];
+  /** Day/night stops, colours from the active island's theme. */
+  private dayStops = buildDayStops(ACTIVE.theme.sky);
 
   // Reusable temporaries (avoid per-frame allocation in the petal update).
   private _m4 = new THREE.Matrix4();
@@ -319,6 +325,8 @@ export class Engine {
     this.scene.add(this.villager.group);
 
     // ── Floating petals / leaves ─────────────────────────────────────────────
+    const pc = ACTIVE.theme.particles;
+    this.petalPalette = pc.palette;
     this.petalTex = makePetalTexture();
     this.petalMat = new THREE.MeshBasicMaterial({
       map: this.petalTex,
@@ -327,7 +335,7 @@ export class Engine {
       depthWrite: false,
       side: THREE.DoubleSide,
     });
-    this.petals = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.16, 0.11), this.petalMat, PETAL_COUNT);
+    this.petals = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.16, 0.11), this.petalMat, pc.count);
     this.petals.frustumCulled = false;
     this.petals.renderOrder = 5;
     this.buildPetals();
@@ -403,7 +411,7 @@ export class Engine {
   /** Seed petal instances with random positions/phase within a ~30 unit box. */
   private buildPetals() {
     const col = new THREE.Color();
-    for (let i = 0; i < PETAL_COUNT; i++) {
+    for (let i = 0; i < this.petals.count; i++) {
       const data: Petal = {
         bx: (Math.random() - 0.5) * 30,
         bz: (Math.random() - 0.5) * 30,
@@ -415,7 +423,7 @@ export class Engine {
         tumbleSpd: (Math.random() - 0.5) * 1.3,
       };
       this.petalData.push(data);
-      col.setHex(PETAL_PALETTE[i % PETAL_PALETTE.length]);
+      col.setHex(this.petalPalette[i % this.petalPalette.length]);
       this.petals.setColorAt(i, col);
       // Place at a spread altitude straight away.
       const y = PETAL_TOP - ((data.phase / (Math.PI * 2)) * PETAL_RANGE) % PETAL_RANGE;
@@ -590,9 +598,9 @@ export class Engine {
     const h = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
 
     let i = 0;
-    while (i < DAY_STOPS.length - 2 && DAY_STOPS[i + 1].h < h) i++;
-    const a = DAY_STOPS[i];
-    const b = DAY_STOPS[i + 1];
+    while (i < this.dayStops.length - 2 && this.dayStops[i + 1].h < h) i++;
+    const a = this.dayStops[i];
+    const b = this.dayStops[i + 1];
     const k = THREE.MathUtils.smoothstep((h - a.h) / (b.h - a.h), 0, 1);
     const u = this.skyMat.uniforms;
     const lc = (ca: number, cb: number, target: THREE.Color) => {
@@ -764,6 +772,11 @@ export class Engine {
       this.island.seaplane.rotation.z = Math.sin(this.time * 0.6) * 0.03;
       const idleProp = this.island.seaplane.userData.prop as THREE.Group | undefined;
       if (idleProp) idleProp.rotation.z += dt * 3.5;
+
+      // Bamboo / tall-grass sway (islands that provide sway groups).
+      for (const g of this.island.sway ?? []) {
+        g.rotation.z = Math.sin(this.time * 0.9 + (g.userData.phase ?? 0)) * 0.035;
+      }
 
       // Unlit white accents dim to moonlit tones at night
       const dim = 1 - this.nightFactor * 0.72;
