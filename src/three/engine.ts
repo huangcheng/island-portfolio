@@ -563,7 +563,7 @@ export class Engine {
   private applyInterior(kind: 'house' | 'museum') {
     let build = this.interiors.get(kind);
     if (!build) {
-      build = buildInterior(kind);
+      build = buildInterior(kind, ACTIVE.theme.interior);
       this.interiors.set(kind, build);
     }
     // Scenes own objects — add() reparents the villager + camera (which

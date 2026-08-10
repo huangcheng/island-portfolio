@@ -31,7 +31,6 @@ export interface IslandTheme {
   ui: Partial<UiPalette>;
   /** Building colors. */
   buildings: BuildingTheme;
-  /** Interior tints — staged config; consumed once interiors read ACTIVE.theme
-   *  (Task 5). */
+  /** Interior tints — wallpaper base, rug colors, museum backdrop. */
   interior: { houseWall: string; rugRing: number; rugCenter: number; museumBg: number };
 }

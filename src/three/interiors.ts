@@ -19,8 +19,15 @@ export interface InteriorBuild {
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
 }
 
-export function buildInterior(kind: 'house' | 'museum'): InteriorBuild {
-  return kind === 'museum' ? buildMuseum() : buildHouse();
+export interface InteriorTint {
+  houseWall: string; // wallpaper base css color (pinstripes derive from it)
+  rugRing: number;
+  rugCenter: number;
+  museumBg: number;
+}
+
+export function buildInterior(kind: 'house' | 'museum', tint: InteriorTint): InteriorBuild {
+  return kind === 'museum' ? buildMuseum(tint) : buildHouse(tint);
 }
 
 // ── Palette ────────────────────────────────────────────────────────────────
@@ -123,14 +130,23 @@ function makePlankTexture(): THREE.CanvasTexture {
   return makeTex(c, 6, 5, true);
 }
 
-/** Pale-green vertical pinstripe wallpaper. */
-function makeWallpaperTexture(): THREE.CanvasTexture {
+/** Pinstripe accent per wallpaper base color. */
+const WALL_STRIPES: Record<string, string> = {
+  '#e8f2dc': '#d6e6c8',
+  '#f2e4cc': '#e4d4b4',
+  '#fdeef4': '#f2dae6',
+  '#e4ece0': '#d2decc',
+  '#e0dce8': '#ccc6da',
+};
+
+/** Vertical pinstripe wallpaper on a tinted base. */
+function makeWallpaperTexture(base = '#e8f2dc', stripe = '#d6e6c8'): THREE.CanvasTexture {
   const S = 256;
   const c = cv(S, S);
   const ctx = c.getContext('2d')!;
-  ctx.fillStyle = '#e8f2dc';
+  ctx.fillStyle = base;
   ctx.fillRect(0, 0, S, S);
-  ctx.fillStyle = '#d6e6c8';
+  ctx.fillStyle = stripe;
   for (let x = 6; x < S; x += 14) ctx.fillRect(x, 0, 3, S);
   ctx.fillStyle = 'rgba(170,196,150,0.5)';
   for (let x = 13; x < S; x += 14) ctx.fillRect(x, 0, 1, S);
@@ -293,6 +309,34 @@ function solarArtCanvas(): HTMLCanvasElement {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('Solar System', W / 2, H - 22);
+  return c;
+}
+
+const KIND_COLORS: Record<Exhibit['kind'], string> = {
+  project: '#889df0',
+  post: '#d97b2f',
+  note: '#f4a7c3',
+  log: '#6fae7d',
+};
+
+/** Fallback museum art: kind-colored field + big initial (Baloo-safe glyphs only).
+ *  Returns a canvas like the other art painters; makeFrame wraps it in makeTex. */
+function genericArtCanvas(e: Exhibit): HTMLCanvasElement {
+  const W = 256;
+  const H = 320;
+  const c = cv(W, H);
+  const ctx = c.getContext('2d')!;
+  ctx.fillStyle = KIND_COLORS[e.kind];
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(255,255,255,0.22)';
+  ctx.fillRect(0, 220, W, 100);
+  ctx.fillStyle = '#fffef7';
+  ctx.font = 'bold 150px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(e.title.charAt(0).toUpperCase(), W / 2, 130);
+  ctx.font = 'bold 34px sans-serif';
+  ctx.fillText(e.kind.toUpperCase(), W / 2, 268);
   return c;
 }
 
@@ -656,9 +700,9 @@ function addBox(
 // MUSEUM — Project Gallery
 // ============================================================================
 
-function buildMuseum(): InteriorBuild {
+function buildMuseum(tint: InteriorTint): InteriorBuild {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xf2ead8);
+  scene.background = new THREE.Color(tint.museumBg);
   const colliders: Collider[] = [];
   const points: InteractPoint[] = [];
 
@@ -708,22 +752,30 @@ function buildMuseum(): InteriorBuild {
   addBox(scene, 0.08, bbH, maxZ - minZ, bbMat, maxX - 0.17, bbH / 2, 0);
   addBox(scene, 0.08, bbH, maxZ - minZ, bbMat, minX + 0.17, bbH / 2, 0);
 
-  // ── Three gilded frames on the north wall ──
+  // ── Gilded frames on the north wall — one per exhibit (max 5) ──
   const frameZ = minZ + 0.2; // just in front of the inside face
   const frameY = 2.1;
-  const frameXs = [-4.6, 0, 4.6];
-  const arts = [seelieArtCanvas(), bridgeArtCanvas(), solarArtCanvas()];
-  for (let i = 0; i < 3; i++) {
-    scene.add(makeFrame(arts[i], 1.9, 1.35, frameXs[i], frameY, frameZ));
+  const shown = exhibits.slice(0, 5);
+  const frameXs = shown.length === 1
+    ? [0]
+    : shown.map((_, i) => -4.6 + (9.2 * i) / (shown.length - 1));
+  shown.forEach((e, i) => {
+    const art = e.art === 'seelie'
+      ? seelieArtCanvas()
+      : e.art === 'bridge'
+        ? bridgeArtCanvas()
+        : e.art === 'solar'
+          ? solarArtCanvas()
+          : genericArtCanvas(e);
+    scene.add(makeFrame(art, 1.9, 1.35, frameXs[i], frameY, frameZ));
     const plaque = new THREE.Mesh(rbox(0.7, 0.18, 0.06, 0.03), std(PAL.cream, 0.9));
     plaque.position.set(frameXs[i], frameY - 0.9, frameZ + 0.06);
     scene.add(plaque);
-    const proj: Exhibit = exhibits[i];
     points.push({
       id: `exhibit-${i}`,
-      label: proj.title,
+      label: e.title,
       hint: 'View exhibit',
-      exhibit: proj,
+      exhibit: e,
       position: new THREE.Vector3(frameXs[i], 0, -4.15),
       markerY: 1.5,
       radius: 1.5,
@@ -732,7 +784,7 @@ function buildMuseum(): InteriorBuild {
     const spot = new THREE.PointLight(0xffd9a0, 6, 8, 1.6);
     spot.position.set(frameXs[i], 3.3, -4.4);
     scene.add(spot);
-  }
+  });
 
   // ── Wall sconces flanking the centre frame ──
   for (const sx of [-1.7, 1.7]) {
@@ -754,7 +806,7 @@ function buildMuseum(): InteriorBuild {
   // ── Centre: round rug + long bench ──
   const rug = new THREE.Mesh(
     new THREE.CircleGeometry(2.2, 48),
-    new THREE.MeshStandardMaterial({ map: makeRugTexture(PAL.red, PAL.cream), roughness: 0.95 }),
+    new THREE.MeshStandardMaterial({ map: makeRugTexture(tint.rugRing, tint.rugCenter), roughness: 0.95 }),
   );
   rug.rotation.x = -Math.PI / 2;
   rug.position.set(0, 0.025, 0);
@@ -807,7 +859,7 @@ function buildMuseum(): InteriorBuild {
 // HOUSE — About room
 // ============================================================================
 
-function buildHouse(): InteriorBuild {
+function buildHouse(tint: InteriorTint): InteriorBuild {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xeef5e2);
   const colliders: Collider[] = [];
@@ -838,7 +890,10 @@ function buildHouse(): InteriorBuild {
   scene.add(walkSurface);
 
   // ── Walls (pinstripe wallpaper) — south split for door gap ──
-  const wallMat = new THREE.MeshStandardMaterial({ map: makeWallpaperTexture(), roughness: 0.95 });
+  const wallMat = new THREE.MeshStandardMaterial({
+    map: makeWallpaperTexture(tint.houseWall, WALL_STRIPES[tint.houseWall] ?? '#d6e6c8'),
+    roughness: 0.95,
+  });
   addBox(scene, maxX - minX, WH, T, wallMat, 0, WH / 2, minZ); // north
   addBox(scene, T, WH, maxZ - minZ, wallMat, maxX, WH / 2, 0); // east
   addBox(scene, T, WH, maxZ - minZ, wallMat, minX, WH / 2, 0); // west
@@ -957,7 +1012,7 @@ function buildHouse(): InteriorBuild {
   // ── Centre rug ──
   const rug = new THREE.Mesh(
     new THREE.CircleGeometry(1.8, 40),
-    new THREE.MeshStandardMaterial({ map: makeRugTexture(PAL.red, PAL.cream), roughness: 0.95 }),
+    new THREE.MeshStandardMaterial({ map: makeRugTexture(tint.rugRing, tint.rugCenter), roughness: 0.95 }),
   );
   rug.rotation.x = -Math.PI / 2;
   rug.position.set(0, 0.025, 0.6);
