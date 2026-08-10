@@ -66,10 +66,19 @@ export const theme: IslandTheme = {
     museumRoof: 0x4f86c6,
     museumRoofLight: 0x6fa0d8,
     museumRoofDeep: 0x2f527f,
+    museumRoofShade: 0x3a6699,
     museumWall: 0xffeed0,
   },
   interior: { houseWall: '#e8f2dc', rugRing: 0xe2574c, rugCenter: 0xfff2d0, museumBg: 0xf2ead8 },
 };
+
+/** Building footprints (collider circles) — one source for the collider
+ *  pushes AND the grass-tuft scatter rejection below. */
+const FOOTPRINTS = {
+  house: { x: -6.5, z: -4.6, r: 3.0 },
+  museum: { x: 6.6, z: -5.2, r: 3.6 },
+  board: { x: 6.2, z: 5.2, r: 1.35 },
+} as const;
 
 export function build(): IslandBuild {
   setBuildingTheme(theme.buildings);
@@ -101,10 +110,10 @@ export function build(): IslandBuild {
 
   // ── Buildings (footprints/rotations are contract-fixed) ───────────────────
   const house = makeHouse();
-  house.position.set(-6.5, 0, -4.6);
+  house.position.set(FOOTPRINTS.house.x, 0, FOOTPRINTS.house.z);
   house.rotation.y = Math.atan2(6.5, 5.1);
   group.add(house);
-  colliders.push({ x: -6.5, z: -4.6, r: 3.0 });
+  colliders.push({ ...FOOTPRINTS.house });
 
   const houseSign = makeSign('Home');
   houseSign.position.set(-5.3, 0, -1.6); // flanks the door approach (never blocks it)
@@ -113,10 +122,10 @@ export function build(): IslandBuild {
   colliders.push({ x: -5.3, z: -1.6, r: 0.5 });
 
   const museum = makeMuseum();
-  museum.position.set(6.6, 0, -5.2);
+  museum.position.set(FOOTPRINTS.museum.x, 0, FOOTPRINTS.museum.z);
   museum.rotation.y = Math.atan2(-6.6, 5.7);
   group.add(museum);
-  colliders.push({ x: 6.6, z: -5.2, r: 3.6 });
+  colliders.push({ ...FOOTPRINTS.museum });
 
   const museumSign = makeSign(locations.projects.name);
   museumSign.position.set(5.6, 0, -1.2); // flanks the door approach
@@ -125,10 +134,10 @@ export function build(): IslandBuild {
   colliders.push({ x: 5.6, z: -1.2, r: 0.5 });
 
   const board = makeNoticeBoard();
-  board.position.set(6.2, 0, 5.2);
+  board.position.set(FOOTPRINTS.board.x, 0, FOOTPRINTS.board.z);
   board.rotation.y = Math.atan2(-6.2, -5.2);
   group.add(board);
-  colliders.push({ x: 6.2, z: 5.2, r: 1.35 });
+  colliders.push({ ...FOOTPRINTS.board });
 
   for (const [lx, lz] of [
     [-2.8, -2.6],
@@ -255,11 +264,6 @@ export function build(): IslandBuild {
   for (const [cx, cz] of cloverSpots) group.add(makeClover(cx, cz, rng));
 
   // scatter grass tufts with rejection against plaza + buildings
-  const buildingFootprints: [number, number, number][] = [
-    [-6.5, -4.6, 3.0],
-    [6.6, -5.2, 3.6],
-    [6.2, 5.2, 1.35],
-  ];
   let placed = 0;
   let guard = 0;
   while (placed < 16 && guard < 200) {
@@ -269,8 +273,8 @@ export function build(): IslandBuild {
     if (Math.hypot(x, z) > 14.5) continue;
     if (Math.hypot(x, z - 0) < 2.5 && Math.hypot(x, z - 0.5) < 2.8) continue;
     let ok = true;
-    for (const [bx, bz, br] of buildingFootprints) {
-      if (Math.hypot(x - bx, z - bz) < br + 0.4) {
+    for (const b of Object.values(FOOTPRINTS)) {
+      if (Math.hypot(x - b.x, z - b.z) < b.r + 0.4) {
         ok = false;
         break;
       }

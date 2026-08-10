@@ -21,13 +21,17 @@ export interface IslandTheme {
   };
   sand: { base: string; wet: number };
   path: { center: number; rim: number };
+  /** Day/night sky stops — staged config; consumed once the engine day/night
+   *  wiring reads ACTIVE.theme (Task 4). */
   sky: { night: SkyState; dawn: SkyState; day: SkyState; sunset: SkyState; dusk: SkyState };
-  /** Ambient drifting particles (petals/leaves/dust). */
+  /** Ambient drifting particles (petals/leaves/dust) — staged config; consumed
+   *  once the engine particle system reads ACTIVE.theme (Task 4). */
   particles: { palette: number[]; count: number };
   /** UI wood skin. */
   ui: Partial<UiPalette>;
   /** Building colors. */
   buildings: BuildingTheme;
-  /** Interior tints. */
+  /** Interior tints — staged config; consumed once interiors read ACTIVE.theme
+   *  (Task 5). */
   interior: { houseWall: string; rugRing: number; rugCenter: number; museumBg: number };
 }

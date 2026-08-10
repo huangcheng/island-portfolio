@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { std, shadowed } from './core';
 
 /** Multiply an sRGB hex color by a factor (for roof light/shade variants). */
 function shadeOf(hex: number, f: number): number {
@@ -20,12 +21,13 @@ export interface BuildingTheme {
   doorHi?: number;
   museumRoofLight?: number;
   museumRoofDeep?: number;
+  museumRoofShade?: number;
 }
 
 /** House roof palette — themed per island via setBuildingTheme. */
 let ROOF = { base: 0xe2574c, light: 0, deep: 0, shade: 0 };
 let DOOR = { dark: 0x5a3f22, mid: 0x7a5326, hi: 0x9c6f3a };
-let MUSEUM = { roof: 0x4f86c6, roofLight: 0x6fa0d8, roofDeep: 0x2f527f, wall: 0xffeed0 };
+let MUSEUM = { roof: 0x4f86c6, roofLight: 0x6fa0d8, roofDeep: 0x2f527f, roofShade: 0x3a6699, wall: 0xffeed0 };
 
 export function setBuildingTheme(t: BuildingTheme): void {
   ROOF = { base: t.roof, light: shadeOf(t.roof, 1.12), deep: shadeOf(t.roof, 0.62), shade: shadeOf(t.roof, 0.74) };
@@ -34,6 +36,7 @@ export function setBuildingTheme(t: BuildingTheme): void {
     roof: t.museumRoof,
     roofLight: t.museumRoofLight ?? shadeOf(t.museumRoof, 1.32),
     roofDeep: t.museumRoofDeep ?? shadeOf(t.museumRoof, 0.64),
+    roofShade: t.museumRoofShade ?? shadeOf(t.museumRoof, 0.74),
     wall: t.museumWall,
   };
 }
@@ -47,6 +50,7 @@ setBuildingTheme({
   museumRoof: 0x4f86c6,
   museumRoofLight: 0x6fa0d8,
   museumRoofDeep: 0x2f527f,
+  museumRoofShade: 0x3a6699,
   museumWall: 0xffeed0,
 });
 
@@ -61,8 +65,6 @@ const COL = {
   redShade: 0xa8463e,
   redDeep: 0x8e3a36,
   blue: 0x4f86c6,
-  blueShade: 0x3a6699,
-  blueDeep: 0x2f527f,
   white: 0xf7f4ec,
   pureWhite: 0xffffff,
   woodDark: 0x8a5a33,
@@ -88,29 +90,20 @@ const COL = {
 
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');
 
-function std(color: number, roughness = 0.9): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 });
-}
-
-function shadowed<T extends THREE.Mesh>(m: T, cast = true, receive = false): T {
-  m.castShadow = cast;
-  m.receiveShadow = receive;
-  return m;
-}
-
 /** Rounded box helper (single material — RoundedBoxGeometry has no face groups). */
 function rbox(w: number, h: number, d: number, r: number): RoundedBoxGeometry {
   return new RoundedBoxGeometry(w, h, d, 3, r);
 }
 
 // Shared plain materials (reused across buildings to keep draw-setup cheap).
+// NOTE: only theme-independent colors live here — themed accents are built
+// at use time from ROOF/DOOR/MUSEUM so setBuildingTheme actually applies.
 const M = {
   creamWall: std(COL.creamWall, 0.92),
   cream: std(COL.cream, 0.9),
   white: std(COL.white, 0.9),
   pureWhite: std(COL.pureWhite, 0.85),
   redShade: std(COL.redShade, 0.85),
-  blueShade: std(COL.blueShade, 0.85),
   woodDark: std(COL.woodDark, 0.92),
   woodLight: std(COL.woodLight, 0.9),
   woodPost: std(COL.woodPost, 0.95),
@@ -119,7 +112,6 @@ const M = {
   navyLight: std(COL.navyLight, 0.7),
   stone: std(COL.stone, 0.95),
   stoneDark: std(COL.stoneDark, 0.95),
-  doorDark: std(0x5a3f22, 0.85),
   brown: std(COL.brown, 0.9),
   brownLight: std(COL.brownLight, 0.9),
   leaf: std(COL.leaf, 0.8),
@@ -127,6 +119,9 @@ const M = {
 
 /** House roof shade material — per-island (setBuildingTheme), built at use. */
 const roofShadeMat = () => std(ROOF.shade, 0.85);
+
+/** Museum roof cap/hip-cap shade material — per-island, built at use. */
+const museumShadeMat = () => std(MUSEUM.roofShade, 0.85);
 
 function glassMat(): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
@@ -489,7 +484,7 @@ export function makeHouse(): THREE.Group {
   // --- Front door (panelled, porthole, knob, step) ---
   const doorTex = makeTex(doorCanvas(false));
   const doorFront = new THREE.MeshStandardMaterial({ map: doorTex, roughness: 0.82, metalness: 0 });
-  const doorSide = M.doorDark;
+  const doorSide = std(DOOR.dark, 0.85);
   const doorH = 1.5;
   const door = shadowed(
     new THREE.Mesh(new THREE.BoxGeometry(0.96, doorH, 0.12), [
@@ -764,7 +759,7 @@ export function makeMuseum(): THREE.Group {
   // flat cap on top
   const capW = 0.9;
   const cap = shadowed(
-    new THREE.Mesh(rbox(capW, 0.16, capW * ((D + over * 2) / baseSide) + 0.1, 0.04), M.blueShade),
+    new THREE.Mesh(rbox(capW, 0.16, capW * ((D + over * 2) / baseSide) + 0.1, 0.04), museumShadeMat()),
     true,
     true,
   );
@@ -882,7 +877,7 @@ export function makeMuseum(): THREE.Group {
   const hipCaps: THREE.Mesh[] = [];
   for (const [hx, hz] of hipCorners) {
     const dir = new THREE.Vector3(-hx, roofH, -hz).normalize();
-    const hc = shadowed(new THREE.Mesh(hipCapGeo, M.blueShade), true, false);
+    const hc = shadowed(new THREE.Mesh(hipCapGeo, museumShadeMat()), true, false);
     hc.position.set(hx / 2, hipY0 + roofH / 2, hz / 2);
     hc.quaternion.setFromUnitVectors(upVec, dir);
     hipCaps.push(hc);
