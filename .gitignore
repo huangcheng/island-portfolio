@@ -9,3 +9,6 @@ dev-server.log
 preview-*.log
 
 dist/
+
+# Superpowers brainstorming mockups
+.superpowers/
