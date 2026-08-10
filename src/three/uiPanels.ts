@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Text } from 'troika-three-text';
 import { C, FONT_BOLD, FONT_HEAVY, makeIconMesh, makeLabel, makePanel, roundedRectShape, UiButton } from './uiKit';
-import { profile, projects, type Project } from '../content';
+import { profile, exhibits, exhibitsSubtitle, locations, type Exhibit } from '../content';
 import { SITE, type SisterIsland } from '../site';
 
 const _spineA = new THREE.Color();
@@ -46,10 +46,10 @@ function makeSoftShadow(w: number, h: number, r: number, opacity = 0.16): THREE.
 
 /** Route titles shown in the HUD pill. */
 const TITLES: Record<string, string> = {
-  '/': SITE.name, // the island this build serves
-  '/about': 'My House',
-  '/projects': 'Museum',
-  '/contact': 'Notice Board',
+  '/': SITE.name,
+  '/about': locations.about.name,
+  '/projects': locations.projects.name,
+  '/contact': locations.contact.name,
 };
 
 /**
@@ -204,7 +204,7 @@ export class UiPanels {
     let group: THREE.Group;
     let H: number;
     if (path === '/about') [group, H] = this.buildAbout(W);
-    else if (path === '/projects') [group, H] = this.buildProjects(W);
+    else if (path === '/projects') [group, H] = this.buildExhibits(W);
     else [group, H] = this.buildContact(W);
 
     group.userData.W = W;
@@ -217,7 +217,7 @@ export class UiPanels {
 
   /** Exhibit info placard (museum frames) — a flat museum wall-label, NOT a
    *  speech bubble. Independent of routes. */
-  showExhibit(p: Project | null) {
+  showExhibit(p: Exhibit | null) {
     this.clearDialog();
     if (!p) return;
 
@@ -253,52 +253,63 @@ export class UiPanels {
     g.add(close);
     this.dialogHots.push({ group: close, mesh: close.hitMesh, onClick: () => this.closeExhibit(), hoverT: 0 });
 
-    const tagline = makeLabel(p.tagline, {
+    // Optional date line between title and summary (posts/notes/logs)
+    if (p.date) {
+      const date = makeLabel(p.date, { size: 0.085, color: C.body, anchorX: 'left' });
+      date.position.set(-W / 2 + 0.34, H / 2 - 0.47, 0.002);
+      g.add(date);
+    }
+
+    const summary = makeLabel(p.summary, {
       size: 0.08, color: C.body, anchorX: 'left', anchorY: 'top', maxWidth: W - 0.7, align: 'left',
     });
-    tagline.position.set(-W / 2 + 0.34, H / 2 - 0.52, 0.002);
-    g.add(tagline);
+    summary.position.set(-W / 2 + 0.34, H / 2 - 0.52, 0.002);
+    g.add(summary);
 
-    // Star pill (drawn star + count)
-    const stars = new THREE.Group();
-    const starPill = makePanel(0.56, 0.24, 0.12, { bg: C.gold, border: C.goldEdge, borderWidth: 0.014 });
-    stars.add(starPill);
-    const star = new THREE.Mesh(
-      new THREE.ShapeGeometry(makeStarShape(0.07)),
-      new THREE.MeshBasicMaterial({ color: C.goldEdge, toneMapped: false, depthTest: false, depthWrite: false, transparent: true }),
-    );
-    star.position.set(-0.14, 0, 0.002);
-    stars.add(star);
-    const starLabel = makeLabel(String(p.stars), { size: 0.08, color: C.heading, font: FONT_HEAVY, anchorX: 'left' });
-    starLabel.position.set(-0.03, 0, 0.002);
-    stars.add(starLabel);
-    stars.position.set(-W / 2 + 0.55, -H / 2 + 0.32, 0.002);
-    g.add(stars);
-
-    // Stack chips next to the stars
-    const chips = new THREE.Group();
-    let cx = 0;
-    for (const s of p.stack) {
-      const cw = s.length * 0.042 + 0.22;
-      const chip = makePanel(cw, 0.19, 0.095, { bg: C.paperWarm, border: C.line, borderWidth: 0.012 });
-      const cl = makeLabel(s, { size: 0.058, color: C.body, font: FONT_BOLD });
-      cl.position.z = 0.002;
-      chip.add(cl);
-      chip.position.set(cx + cw / 2, 0, 0.002);
-      chips.add(chip);
-      cx += cw + 0.08;
+    // Star pill (drawn star + count) — only for exhibits that carry stars
+    if (p.stars !== undefined) {
+      const stars = new THREE.Group();
+      const starPill = makePanel(0.56, 0.24, 0.12, { bg: C.gold, border: C.goldEdge, borderWidth: 0.014 });
+      stars.add(starPill);
+      const star = new THREE.Mesh(
+        new THREE.ShapeGeometry(makeStarShape(0.07)),
+        new THREE.MeshBasicMaterial({ color: C.goldEdge, toneMapped: false, depthTest: false, depthWrite: false, transparent: true }),
+      );
+      star.position.set(-0.14, 0, 0.002);
+      stars.add(star);
+      const starLabel = makeLabel(String(p.stars), { size: 0.08, color: C.heading, font: FONT_HEAVY, anchorX: 'left' });
+      starLabel.position.set(-0.03, 0, 0.002);
+      stars.add(starLabel);
+      stars.position.set(-W / 2 + 0.55, -H / 2 + 0.32, 0.002);
+      g.add(stars);
     }
-    chips.position.set(-W / 2 + 1.0, -H / 2 + 0.32, 0.002);
-    g.add(chips);
+
+    // Stack chips next to the stars — only when the exhibit has a stack
+    if (p.stack) {
+      const chips = new THREE.Group();
+      let cx = 0;
+      for (const s of p.stack) {
+        const cw = s.length * 0.042 + 0.22;
+        const chip = makePanel(cw, 0.19, 0.095, { bg: C.paperWarm, border: C.line, borderWidth: 0.012 });
+        const cl = makeLabel(s, { size: 0.058, color: C.body, font: FONT_BOLD });
+        cl.position.z = 0.002;
+        chip.add(cl);
+        chip.position.set(cx + cw / 2, 0, 0.002);
+        chips.add(chip);
+        cx += cw + 0.08;
+      }
+      chips.position.set(-W / 2 + 1.0, -H / 2 + 0.32, 0.002);
+      g.add(chips);
+    }
 
     const gh = new UiButton({
-      w: 1.3, h: 0.38, bg: C.blue, edge: C.blueEdge, label: 'GitHub', size: 0.1,
+      w: 1.3, h: 0.38, bg: C.blue, edge: C.blueEdge, label: p.kind === 'project' ? 'GitHub' : 'Read', size: 0.1,
       icon: makeIconMesh('/icons/github.svg'),
-      onClick: () => window.open(p.repo, '_blank', 'noopener'),
+      onClick: () => window.open(p.url, '_blank', 'noopener'),
     });
     gh.position.set(W / 2 - 0.85, -H / 2 + 0.32, 0.002);
     g.add(gh);
-    this.dialogHots.push({ group: gh, mesh: gh.hitMesh, onClick: () => window.open(p.repo, '_blank', 'noopener'), hoverT: 0 });
+    this.dialogHots.push({ group: gh, mesh: gh.hitMesh, onClick: () => window.open(p.url, '_blank', 'noopener'), hoverT: 0 });
 
     g.userData.W = W;
     g.userData.H = H;
@@ -487,7 +498,7 @@ export class UiPanels {
     });
     typeLabel.position.set(-(W / 2 - 0.42), H / 2 - 0.36, 0.002);
     g.add(typeLabel);
-    this.typeTarget = { label: typeLabel, full: SITE.greeting, count: 0 };
+    this.typeTarget = { label: typeLabel, full: profile.greeting, count: 0 };
 
     const role = makeLabel(`${profile.role} · this island + UI are 100% WebGL`, {
       size: 0.075, color: C.teal, font: FONT_BOLD,
@@ -530,19 +541,19 @@ export class UiPanels {
     return [g, H];
   }
 
-  private buildProjects(W: number): [THREE.Group, number] {
+  private buildExhibits(W: number): [THREE.Group, number] {
     const cardH = 0.7;
     const gap = 0.1;
-    const H = 0.62 + projects.length * (cardH + gap) + 0.35;
+    const H = 0.62 + exhibits.length * (cardH + gap) + 0.35;
     const g = this.dialogChrome(W, H, 'Museum Exhibits');
 
-    const sub = makeLabel(`Curated exhibits from ${profile.github.label}`, {
+    const sub = makeLabel(`Curated exhibits from ${exhibitsSubtitle}`, {
       size: 0.08, color: C.teal, font: FONT_BOLD,
     });
     sub.position.set(0, H / 2 - 0.36, 0.002);
     g.add(sub);
 
-    projects.forEach((p, i) => {
+    exhibits.forEach((p, i) => {
       const card = new THREE.Group();
       const y = H / 2 - 0.62 - cardH / 2 - i * (cardH + gap);
       const cardW = W - 0.6;
@@ -562,49 +573,58 @@ export class UiPanels {
       title.position.set(-cardW / 2 + 0.28, cardH / 2 - 0.17, 0.002);
       card.add(title);
 
-      // Star pill: drawn star + count
-      const stars = new THREE.Group();
-      const starPill = makePanel(0.56, 0.24, 0.12, { bg: C.gold, border: C.goldEdge, borderWidth: 0.014 });
-      stars.add(starPill);
-      const star = new THREE.Mesh(
-        new THREE.ShapeGeometry(makeStarShape(0.07)),
-        new THREE.MeshBasicMaterial({ color: C.goldEdge, toneMapped: false, depthTest: false, depthWrite: false, transparent: true }),
-      );
-      star.position.set(-0.14, 0, 0.002);
-      stars.add(star);
-      const starLabel = makeLabel(String(p.stars), { size: 0.08, color: C.heading, font: FONT_HEAVY, anchorX: 'left' });
-      starLabel.position.set(-0.03, 0, 0.002);
-      stars.add(starLabel);
-      stars.position.set(cardW / 2 - 0.42, cardH / 2 - 0.17, 0.002);
-      card.add(stars);
+      if (p.stars !== undefined) {
+        // Star pill: drawn star + count
+        const stars = new THREE.Group();
+        const starPill = makePanel(0.56, 0.24, 0.12, { bg: C.gold, border: C.goldEdge, borderWidth: 0.014 });
+        stars.add(starPill);
+        const star = new THREE.Mesh(
+          new THREE.ShapeGeometry(makeStarShape(0.07)),
+          new THREE.MeshBasicMaterial({ color: C.goldEdge, toneMapped: false, depthTest: false, depthWrite: false, transparent: true }),
+        );
+        star.position.set(-0.14, 0, 0.002);
+        stars.add(star);
+        const starLabel = makeLabel(String(p.stars), { size: 0.08, color: C.heading, font: FONT_HEAVY, anchorX: 'left' });
+        starLabel.position.set(-0.03, 0, 0.002);
+        stars.add(starLabel);
+        stars.position.set(cardW / 2 - 0.42, cardH / 2 - 0.17, 0.002);
+        card.add(stars);
+      } else {
+        // No stars (posts/notes/logs) — show a small kind chip instead
+        const kind = makeLabel(p.kind, { size: 0.08, color: C.body });
+        kind.position.set(cardW / 2 - 0.42, cardH / 2 - 0.17, 0.002);
+        card.add(kind);
+      }
 
-      const tagline = makeLabel(p.tagline, {
+      const summary = makeLabel(p.summary, {
         size: 0.066, color: C.body, anchorX: 'left', anchorY: 'top', maxWidth: cardW - 1.35, align: 'left',
       });
-      tagline.position.set(-cardW / 2 + 0.28, 0.06, 0.002);
-      card.add(tagline);
+      summary.position.set(-cardW / 2 + 0.28, 0.06, 0.002);
+      card.add(summary);
 
-      const chips = new THREE.Group();
-      let cx = 0;
-      for (const s of p.stack) {
-        const cw = s.length * 0.042 + 0.22;
-        const chip = makePanel(cw, 0.19, 0.095, { bg: C.paperWarm, border: C.line, borderWidth: 0.012 });
-        const cl = makeLabel(s, { size: 0.058, color: C.body, font: FONT_BOLD });
-        cl.position.z = 0.002;
-        chip.add(cl);
-        chip.position.set(cx + cw / 2, 0, 0.002);
-        chips.add(chip);
-        cx += cw + 0.08;
+      if (p.stack) {
+        const chips = new THREE.Group();
+        let cx = 0;
+        for (const s of p.stack) {
+          const cw = s.length * 0.042 + 0.22;
+          const chip = makePanel(cw, 0.19, 0.095, { bg: C.paperWarm, border: C.line, borderWidth: 0.012 });
+          const cl = makeLabel(s, { size: 0.058, color: C.body, font: FONT_BOLD });
+          cl.position.z = 0.002;
+          chip.add(cl);
+          chip.position.set(cx + cw / 2, 0, 0.002);
+          chips.add(chip);
+          cx += cw + 0.08;
+        }
+        chips.position.set(-cardW / 2 + 0.28, -cardH / 2 + 0.115, 0.002);
+        card.add(chips);
       }
-      chips.position.set(-cardW / 2 + 0.28, -cardH / 2 + 0.115, 0.002);
-      card.add(chips);
 
       card.position.set(0, y, 0.002);
       g.add(card);
 
       // Whole card is the hit target (inner face of its panel)
       const hit = body.children[1] as THREE.Mesh;
-      hit.userData.onClick = () => window.open(p.repo, '_blank', 'noopener');
+      hit.userData.onClick = () => window.open(p.url, '_blank', 'noopener');
       this.dialogHots.push({ group: card, mesh: hit, onClick: hit.userData.onClick as () => void, hoverT: 0 });
     });
 
@@ -778,7 +798,7 @@ export class UiPanels {
       h.hoverT += (target - h.hoverT) * Math.min(1, dt * 14);
       const k = 1 + h.hoverT * 0.06;
       h.group.scale.set(k, k, 1);
-      // Project cards: lift the green spine toward teal as the hover spring grows
+      // Exhibit cards: lift the green spine toward teal as the hover spring grows
       const spine = h.group.userData.spine as THREE.Mesh | undefined;
       if (spine) {
         (spine.material as THREE.MeshBasicMaterial)

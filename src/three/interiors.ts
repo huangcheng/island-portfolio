@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import type { Collider, InteractPoint } from './island';
-import { projects, type Project } from '../content';
+import { exhibits, type Exhibit } from '../content';
 
 export interface InteriorBuild {
   scene: THREE.Scene;
@@ -718,7 +718,7 @@ function buildMuseum(): InteriorBuild {
     const plaque = new THREE.Mesh(rbox(0.7, 0.18, 0.06, 0.03), std(PAL.cream, 0.9));
     plaque.position.set(frameXs[i], frameY - 0.9, frameZ + 0.06);
     scene.add(plaque);
-    const proj: Project = projects[i];
+    const proj: Exhibit = exhibits[i];
     points.push({
       id: `exhibit-${i}`,
       label: proj.title,

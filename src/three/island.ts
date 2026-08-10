@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { locations, type Project } from '../content';
+import { locations, type Exhibit } from '../content';
 import { addBuildings } from './buildings';
 
 export interface Collider {
@@ -18,8 +18,8 @@ export interface InteractPoint {
   enterTo?: 'house' | 'museum';
   /** Exit the current interior back to the island. */
   exit?: boolean;
-  /** Show the exhibit mini-panel for this project. */
-  exhibit?: Project;
+  /** Show the exhibit mini-panel for this exhibit. */
+  exhibit?: Exhibit;
   /** Open the Dodo Airlines flight board. */
   airport?: boolean;
   position: THREE.Vector3;
